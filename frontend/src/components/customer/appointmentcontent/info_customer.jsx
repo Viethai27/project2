@@ -25,7 +25,28 @@ const CustomerInfoForm = ({ onSubmit, selectedData, isLoading }) => {
   const toast = useToast();
 
   const handleSubmit = () => {
-    // Validation
+    // Validation for appointment details
+    if (!selectedData?.department) {
+      toast({
+        title: "Vui lòng chọn chuyên khoa",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (!selectedData?.doctor) {
+      toast({
+        title: "Vui lòng chọn bác sĩ",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    // Validation for customer info
     if (!fullName.trim()) {
       toast({
         title: "Vui lòng nhập họ và tên",
@@ -74,7 +95,6 @@ const CustomerInfoForm = ({ onSubmit, selectedData, isLoading }) => {
       phone,
       email,
       reason,
-      ...selectedData // Include selected department, doctor, date, session
     };
 
     onSubmit(customerData);

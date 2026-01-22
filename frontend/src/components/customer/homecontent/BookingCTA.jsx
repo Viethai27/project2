@@ -8,9 +8,16 @@ import {
   Stack,
 } from "@chakra-ui/react";
 import { FaArrowRightLong } from "react-icons/fa6";
+import { useNavigate } from "react-router-dom";
 import BookingCTAImage from "../../../assets/BookingCTA.png";
 
 const BookingCTA = () => {
+  const navigate = useNavigate();
+
+  const handleBookingClick = () => {
+    navigate("/appointment");
+  };
+
   return (
     <Box mt={24} px={{ base: 4, md: 8 }}>
       <Flex
@@ -58,6 +65,7 @@ const BookingCTA = () => {
             py={6}
             borderRadius="full"
             _hover={{ bg: "#1e4e8c" }}
+            onClick={handleBookingClick}
           >
             Đặt lịch khám
           </Button>

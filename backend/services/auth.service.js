@@ -110,7 +110,49 @@ class AuthService {
     if (!user) {
       throw new Error('Không tìm thấy người dùng');
     }
-    return user;
+
+    // Check if user is a doctor and get doctor details
+    const Doctor = (await import('../models/1. AUTH/Doctor.model.js')).default;
+    const doctor = await Doctor.findOne({ user: user._id });
+    
+    if (doctor) {
+      // Return user with doctor details
+      return {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        phone: user.phone,
+        status: user.status,
+        role: 'doctor',
+        // Doctor specific fields
+        full_name: doctor.full_name,
+        specialty: doctor.specialty,
+        specialization: doctor.specialization,
+        license_number: doctor.license_number,
+        gender: doctor.gender,
+        experience_years: doctor.experience_years,
+        education: doctor.education,
+        description: doctor.description,
+        avatar: doctor.avatar,
+      };
+    }
+
+    // Check if user is a patient
+    const Patient = (await import('../models/3. PATIENT_INSURANCE/Patient.model.js')).default;
+    const patient = await Patient.findOne({ user: user._id });
+    
+    if (patient) {
+      return {
+        ...user.toObject(),
+        role: 'patient',
+        patientDetails: patient,
+      };
+    }
+
+    return {
+      ...user.toObject(),
+      role: 'user',
+    };
   }
 
   // Change password

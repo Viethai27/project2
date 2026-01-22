@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Text,
   Flex,
   SimpleGrid,
-  Input,
+  Select,
   Icon,
   Button,
+  Spinner,
+  useToast,
 } from "@chakra-ui/react";
 import { MdCalendarMonth } from "react-icons/md";
+import departmentService from "../../../services/departmentService";
 
 
 
@@ -66,6 +69,87 @@ const AppointmentDetailForm = ({ onDataChange }) => {
   const [session, setSession] = useState("morning");
   const [department, setDepartment] = useState("");
   const [doctor, setDoctor] = useState("");
+  const [departments, setDepartments] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState(true);
+  const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
+  const toast = useToast();
+
+  // Load departments on component mount
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        setIsLoadingDepartments(true);
+        const response = await departmentService.getAllDepartments();
+        if (response.success) {
+          setDepartments(response.data);
+        }
+      } catch (error) {
+        toast({
+          title: "Lỗi khi tải danh sách chuyên khoa",
+          description: error.message || "Vui lòng thử lại sau",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoadingDepartments(false);
+      }
+    };
+
+    fetchDepartments();
+  }, [toast]);
+
+  // Load doctors when department changes
+  useEffect(() => {
+    const fetchDoctorsByDepartment = async () => {
+      if (!department) {
+        setDoctors([]);
+        setDoctor("");
+        return;
+      }
+
+      try {
+        setIsLoadingDoctors(true);
+        const response = await departmentService.getDoctorsBySpecialty(department);
+        if (response.success) {
+          setDoctors(response.data);
+          // Reset doctor selection when department changes
+          setDoctor("");
+        }
+      } catch (error) {
+        toast({
+          title: "Lỗi khi tải danh sách bác sĩ",
+          description: error.message || "Vui lòng thử lại sau",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+        setDoctors([]);
+      } finally {
+        setIsLoadingDoctors(false);
+      }
+    };
+
+    fetchDoctorsByDepartment();
+  }, [department, toast]);
+
+  // Send initial data to parent on mount and when values change
+  useEffect(() => {
+    const selectedDateObj = generateDates().find(d => d.id === selectedDate);
+    const data = {
+      department,
+      doctor,
+      date: selectedDate,
+      fullDate: selectedDateObj?.fullDate,
+      session
+    };
+    
+    if (onDataChange) {
+      onDataChange(data);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, session, department, doctor]);
 
   // Update parent component when data changes
   const updateData = (updates) => {
@@ -81,7 +165,11 @@ const AppointmentDetailForm = ({ onDataChange }) => {
 
   const handleDateChange = (dateId) => {
     setSelectedDate(dateId);
-    updateData({ date: dateId });
+    const selectedDateObj = dates.find(d => d.id === dateId);
+    updateData({ 
+      date: dateId,
+      fullDate: selectedDateObj?.fullDate 
+    });
   };
 
   const handleSessionChange = (sessionValue) => {
@@ -101,11 +189,34 @@ const AppointmentDetailForm = ({ onDataChange }) => {
     updateData({ doctor: value });
   };
 
-  const dates = [
-    { id: 1, date: "24/12", day: "Thứ 4" },
-    { id: 2, date: "25/12", day: "Thứ 5" },
-    { id: 3, date: "26/12", day: "Thứ 6" },
-  ];
+  // Generate next 7 days (starting from tomorrow)
+  const generateDates = () => {
+    const dates = [];
+    const today = new Date();
+    const daysOfWeek = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    
+    for (let i = 1; i <= 7; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      
+      const day = date.getDate();
+      const month = date.getMonth() + 1;
+      const year = date.getFullYear();
+      const dayOfWeek = daysOfWeek[date.getDay()];
+      
+      dates.push({
+        id: i - 1,
+        date: `${day}/${month}`,
+        day: dayOfWeek,
+        fullDate: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        isTomorrow: i === 1
+      });
+    }
+    
+    return dates;
+  };
+
+  const dates = generateDates();
 
   return (
     <Box>
@@ -130,17 +241,29 @@ const AppointmentDetailForm = ({ onDataChange }) => {
             >
               Chuyên khoa
             </Text>
-            <Input
-              size="lg"
-              placeholder="Chọn chuyên khoa"
-              borderRadius="full"
-              border="3px solid"
-              borderColor="blue.300"
-              bg="blue.50"
-              _focus={{ borderColor: "blue.500" }}
-              value={department}
-              onChange={handleDepartmentChange}
-            />
+            {isLoadingDepartments ? (
+              <Flex justify="center" align="center" h="50px">
+                <Spinner color="blue.500" />
+              </Flex>
+            ) : (
+              <Select
+                size="lg"
+                placeholder="Chọn chuyên khoa"
+                borderRadius="full"
+                border="3px solid"
+                borderColor="blue.300"
+                bg="blue.50"
+                _focus={{ borderColor: "blue.500" }}
+                value={department}
+                onChange={handleDepartmentChange}
+              >
+                {departments.map((dept) => (
+                  <option key={dept._id} value={dept.name}>
+                    {dept.name}
+                  </option>
+                ))}
+              </Select>
+            )}
           </Box>
 
           {/* Bác sĩ */}
@@ -153,17 +276,49 @@ const AppointmentDetailForm = ({ onDataChange }) => {
             >
               Bác sĩ
             </Text>
-            <Input
-              size="lg"
-              placeholder="Chọn bác sĩ"
-              borderRadius="full"
-              border="3px solid"
-              borderColor="blue.300"
-              bg="blue.50"
-              _focus={{ borderColor: "blue.500" }}
-              value={doctor}
-              onChange={handleDoctorChange}
-            />
+            {isLoadingDoctors ? (
+              <Flex justify="center" align="center" h="50px">
+                <Spinner color="blue.500" />
+              </Flex>
+            ) : !department ? (
+              <Select
+                size="lg"
+                placeholder="Vui lòng chọn chuyên khoa trước"
+                borderRadius="full"
+                border="3px solid"
+                borderColor="gray.300"
+                bg="gray.100"
+                isDisabled={true}
+              />
+            ) : doctors.length === 0 ? (
+              <Select
+                size="lg"
+                placeholder="Không có bác sĩ trong chuyên khoa này"
+                borderRadius="full"
+                border="3px solid"
+                borderColor="gray.300"
+                bg="gray.100"
+                isDisabled={true}
+              />
+            ) : (
+              <Select
+                size="lg"
+                placeholder="Chọn bác sĩ"
+                borderRadius="full"
+                border="3px solid"
+                borderColor="blue.300"
+                bg="blue.50"
+                _focus={{ borderColor: "blue.500" }}
+                value={doctor}
+                onChange={handleDoctorChange}
+              >
+                {doctors.map((doc) => (
+                  <option key={doc._id} value={doc._id}>
+                    {doc.full_name} {doc.specialization ? `- ${doc.specialization}` : ''}
+                  </option>
+                ))}
+              </Select>
+            )}
           </Box>
         </Box>
 
@@ -189,7 +344,6 @@ const AppointmentDetailForm = ({ onDataChange }) => {
                 onClick={() => handleDateChange(d.id)}
               />
             ))}
-            <DateCard isOther />
           </SimpleGrid>
 
           {/* Session */}

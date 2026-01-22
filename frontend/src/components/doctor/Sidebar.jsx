@@ -1,5 +1,6 @@
-import { Box, VStack, Text, Icon, Flex, Avatar, Divider } from "@chakra-ui/react";
+import { Box, VStack, Text, Icon, Flex, Avatar, Divider, Spinner } from "@chakra-ui/react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import {
   MdDashboard,
   MdCalendarMonth,
@@ -11,9 +12,32 @@ import {
   MdPerson,
   MdLogout,
 } from "react-icons/md";
+import { authAPI } from "../../services/api";
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const [doctorInfo, setDoctorInfo] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDoctorInfo = async () => {
+      try {
+        const response = await authAPI.getProfile();
+        console.log("Sidebar - API Response:", response);
+        console.log("Sidebar - User data:", response.data);
+        if (response.data.success && response.data.user) {
+          console.log("Sidebar - Doctor info:", response.data.user);
+          setDoctorInfo(response.data.user);
+        }
+      } catch (error) {
+        console.error("Error fetching doctor info:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDoctorInfo();
+  }, []);
 
   const handleLogout = () => {
     // Clear localStorage or sessionStorage
@@ -80,17 +104,28 @@ const Sidebar = () => {
     >
       {/* Header */}
       <Box p={6} bg="blue.600" color="white">
-        <Flex align="center" gap={3} mb={2}>
-          <Avatar size="md" name="BS. Nguyễn Thị Hồng Nhung" bg="blue.400" />
-          <Box>
-            <Text fontSize="lg" fontWeight="bold">
-              BS. Nguyễn Thị Hồng Nhung
-            </Text>
-            <Text fontSize="sm" opacity={0.9}>
-              Khoa Sản - Phụ khoa
-            </Text>
-          </Box>
-        </Flex>
+        {isLoading ? (
+          <Flex justify="center" align="center" h="60px">
+            <Spinner size="md" color="white" />
+          </Flex>
+        ) : (
+          <Flex align="center" gap={3} mb={2}>
+            <Avatar 
+              size="md" 
+              name={doctorInfo?.full_name || doctorInfo?.username || "Doctor"} 
+              bg="blue.400"
+              src={doctorInfo?.avatar}
+            />
+            <Box>
+              <Text fontSize="lg" fontWeight="bold">
+                {doctorInfo?.full_name || doctorInfo?.username || "Doctor"}
+              </Text>
+              <Text fontSize="sm" opacity={0.9}>
+                {doctorInfo?.specialty || doctorInfo?.specialization || "Bác sĩ"}
+              </Text>
+            </Box>
+          </Flex>
+        )}
       </Box>
 
       <Divider />

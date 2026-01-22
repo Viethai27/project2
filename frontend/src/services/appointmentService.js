@@ -38,7 +38,7 @@ const validateAppointmentData = (data) => {
   if (!data) {
     throw new Error('Dữ liệu lịch hẹn không hợp lệ');
   }
-  if (!data.doctorId) {
+  if (!data.doctor && !data.doctorId) {
     throw new Error('Vui lòng chọn bác sĩ');
   }
   if (!data.appointmentDate) {

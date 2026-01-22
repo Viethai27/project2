@@ -108,7 +108,7 @@ export default function Footer() {
         {/* Bottom section: Copyright */}
         <Box textAlign="center">
           <Text fontSize="xs" color="gray.500" mb={2}>
-            © 2024 PAMEC - Phòng khám đa khoa. Tất cả quyền được bảo lưu.
+            © 2025 PAMEC -Đồng hành cùng sức khỏe. Tất cả quyền được bảo lưu.
           </Text>
           <Text fontSize="xs" color="gray.500">
             Địa chỉ: Phường X, Thành phố Y | Điện thoại: 1900 XXXX | Email: info@pamec.vn

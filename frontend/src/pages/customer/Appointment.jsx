@@ -12,6 +12,7 @@ const Appointment = () => {
     department: "",
     doctor: "",
     date: "",
+    fullDate: "",
     session: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,16 +27,24 @@ const Appointment = () => {
     try {
       setIsSubmitting(true);
 
+      // Map data to match backend API format
       const appointmentData = {
-        ...customerData,
-        appointmentDate: selectedAppointmentData.date,
+        fullName: customerData.fullName,
+        email: customerData.email,
+        phone: customerData.phone,
+        gender: customerData.gender,
+        dateOfBirth: customerData.dateOfBirth,
+        appointmentDate: selectedAppointmentData.fullDate || selectedAppointmentData.date,
         timeSlot: selectedAppointmentData.session,
         department: selectedAppointmentData.department,
         doctor: selectedAppointmentData.doctor,
-        status: "pending",
+        reason: customerData.reason,
       };
 
-      await appointmentService.createAppointment(appointmentData);
+      console.log('Submitting appointment:', appointmentData);
+      console.log('Selected appointment data:', selectedAppointmentData);
+
+      const response = await appointmentService.createAppointment(appointmentData);
 
       toast({
         title: "Đặt lịch thành công!",
@@ -75,11 +84,8 @@ const Appointment = () => {
           <BreadcrumbItem>
             <BreadcrumbLink href="/">Trang chủ</BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="#">Chuyên khoa</BreadcrumbLink>
-          </BreadcrumbItem>
           <BreadcrumbItem isCurrentPage>
-            <BreadcrumbLink>Khoa Khám tổng quát</BreadcrumbLink>
+            <BreadcrumbLink>Đặt lịch hẹn</BreadcrumbLink>
           </BreadcrumbItem>
         </Breadcrumb>
 

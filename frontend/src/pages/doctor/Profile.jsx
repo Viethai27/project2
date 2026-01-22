@@ -15,26 +15,61 @@ import {
   Badge,
   FormControl,
   FormLabel,
+  useToast,
+  Spinner,
 } from "@chakra-ui/react";
 import { MdEdit, MdSave, MdLock, MdPerson, MdEmail, MdPhone, MdBadge } from "react-icons/md";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from "../../services/api";
 
 const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const toast = useToast();
 
-  // Fake doctor profile data
-  const [profile, setProfile] = useState({
-    id: "BS001",
-    name: "BS. Nguyễn Thị Hồng Nhung",
-    email: "nhung.nguyen@pamec.com",
-    phone: "0901234567",
-    specialization: "Sản khoa",
-    degree: "Bác sĩ Chuyên khoa II",
-    department: "Khoa Sản - Phụ khoa",
-    licenseNumber: "BS-12345-HCM",
-    startDate: "01/01/2015",
-    address: "123 Nguyễn Văn Linh, Q.7, TP.HCM",
-  });
+  // Fetch doctor profile from API
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setIsLoading(true);
+        const response = await api.getProfile();
+        
+        if (response.data.success && response.data.user) {
+          const userData = response.data.user;
+          
+          // Map API data to profile format
+          setProfile({
+            id: userData._id,
+            name: userData.full_name || userData.username,
+            email: userData.email,
+            phone: userData.phone || "Chưa cập nhật",
+            specialization: userData.specialization || "Chưa cập nhật",
+            specialty: userData.specialty || "Chưa cập nhật",
+            degree: userData.education || "Bác sĩ",
+            department: userData.specialty || "Chưa cập nhật",
+            licenseNumber: userData.license_number || "Chưa cập nhật",
+            experience_years: userData.experience_years || 0,
+            description: userData.description || "",
+            avatar: userData.avatar,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        toast({
+          title: "Lỗi khi tải thông tin",
+          description: error.message || "Không thể tải thông tin cá nhân",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [toast]);
 
   const handleSave = () => {
     setIsEditing(false);
@@ -48,7 +83,16 @@ const Profile = () => {
         Hồ sơ cá nhân
       </Heading>
 
-      <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
+      {isLoading ? (
+        <Flex justify="center" align="center" minH="400px">
+          <Spinner size="xl" color="blue.500" thickness="4px" />
+        </Flex>
+      ) : !profile ? (
+        <Box textAlign="center" py={10}>
+          <Text color="gray.600">Không thể tải thông tin cá nhân</Text>
+        </Box>
+      ) : (
+        <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
         {/* Profile Card */}
         <Box
           bg="white"
@@ -281,6 +325,7 @@ const Profile = () => {
           </Box>
         </Box>
       </SimpleGrid>
+      )}
     </Container>
   );
 };
