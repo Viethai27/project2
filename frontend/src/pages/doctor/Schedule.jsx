@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Container,
@@ -9,14 +9,46 @@ import {
   VStack,
   HStack,
   Badge,
-  Divider,
   Icon,
   SimpleGrid,
+  Spinner,
+  useToast,
 } from "@chakra-ui/react";
 import { MdChevronLeft, MdChevronRight, MdCalendarToday, MdAccessTime } from "react-icons/md";
+import { doctorAPI } from "../../services/api";
 
 const Schedule = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [scheduleData, setScheduleData] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    const fetchSchedule = async () => {
+      try {
+        setIsLoading(true);
+        const dateStr = selectedDate.toISOString().split('T')[0];
+        const response = await doctorAPI.getAppointmentsByDate(dateStr);
+        
+        if (response.data.success) {
+          setScheduleData(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching schedule:', error);
+        toast({
+          title: 'Lỗi',
+          description: 'Không thể tải lịch làm việc',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSchedule();
+  }, [selectedDate, toast]);
 
   // Format date
   const formatDate = (date) => {
@@ -28,77 +60,6 @@ const Schedule = () => {
     });
   };
 
-  // Fake schedule data - Khoa Sản
-  const scheduleData = [
-    {
-      id: 1,
-      time: "08:00 - 08:30",
-      patientName: "Nguyễn Thị Mai Anh",
-      patientId: "BN001",
-      type: "Khám thai 12 tuần",
-      status: "Hoàn thành",
-      room: "Phòng Khám Sản",
-    },
-    {
-      id: 2,
-      time: "08:30 - 09:00",
-      patientName: "Trần Thị Hương",
-      patientId: "BN002",
-      type: "Thai 28 tuần - Tiền sản giật",
-      status: "Hoàn thành",
-      room: "Phòng Khám Sản",
-    },
-    {
-      id: 3,
-      time: "09:00 - 09:30",
-      patientName: "Lê Thị Phương",
-      patientId: "BN003",
-      type: "Thai 35 tuần - ĐTĐ thai kỳ",
-      status: "Đang khám",
-      room: "Phòng Khám Sản",
-    },
-    {
-      id: 4,
-      time: "09:30 - 10:00",
-      patientName: "Phạm Thị Lan",
-      patientId: "BN004",
-      type: "Thai 20 tuần - Thai đôi",
-      status: "Chờ khám",
-      room: "Phòng Khám Sản",
-    },
-    {
-      id: 5,
-      time: "10:00 - 10:30",
-      patientName: "Vũ Thị Hoa",
-      patientId: "BN006",
-      type: "Thai 8 tuần - Khám định kỳ",
-      status: "Chờ khám",
-      room: "Phòng Khám Sản",
-    },
-  ];
-
-  // Inpatient rounds data - Khoa Sản
-  const inpatientRounds = [
-    {
-      id: 1,
-      patientName: "Hoàng Thị Thu",
-      patientId: "BN005",
-      room: "Giường 3 - Phòng Hậu Sản",
-      diagnosis: "Sau sinh 2 tuần - Theo dõi",
-      admissionDate: "23/12/2025",
-      status: "Hồi phục tốt",
-    },
-    {
-      id: 2,
-      patientName: "Đỗ Thị Ngọc",
-      patientId: "BN007",
-      room: "Giường 5 - Phòng Thai Sản",
-      diagnosis: "Thai 32 tuần - Ngôi ngược",
-      admissionDate: "21/12/2025",
-      status: "Theo dõi trước mổ",
-    },
-  ];
-
   const getStatusColor = (status) => {
     switch (status) {
       case "Hoàn thành":
@@ -107,6 +68,8 @@ const Schedule = () => {
         return "blue";
       case "Chờ khám":
         return "orange";
+      case "Đã hủy":
+        return "red";
       default:
         return "gray";
     }
@@ -163,99 +126,83 @@ const Schedule = () => {
         </Button>
       </Flex>
 
-      <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-        {/* Outpatient Schedule */}
-        <Box>
-          <Heading size="md" mb={4} color="blue.600">
-            Lịch khám ngoại trú
-          </Heading>
-          <VStack spacing={4} align="stretch">
-            {scheduleData.map((appointment) => (
-              <Box
-                key={appointment.id}
-                bg="white"
-                p={4}
-                borderRadius="lg"
-                boxShadow="md"
-                border="1px solid"
-                borderColor="gray.200"
-                _hover={{ boxShadow: "lg", borderColor: "blue.300" }}
-                cursor="pointer"
-                transition="all 0.2s"
-              >
-                <Flex justify="space-between" align="start" mb={2}>
-                  <HStack spacing={2}>
-                    <Icon as={MdAccessTime} color="blue.500" />
-                    <Text fontWeight="bold" color="blue.600">
-                      {appointment.time}
-                    </Text>
-                  </HStack>
-                  <Badge colorScheme={getStatusColor(appointment.status)} px={3} py={1} borderRadius="full">
-                    {appointment.status}
-                  </Badge>
-                </Flex>
-                <VStack align="start" spacing={1} pl={6}>
-                  <Text fontWeight="semibold" fontSize="lg">
-                    {appointment.patientName}
-                  </Text>
-                  <Text fontSize="sm" color="gray.600">
-                    Mã BN: {appointment.patientId} • {appointment.type}
-                  </Text>
-                  <Text fontSize="sm" color="gray.500">
-                    {appointment.room}
-                  </Text>
-                </VStack>
-              </Box>
-            ))}
-          </VStack>
-        </Box>
+      {isLoading ? (
+        <Flex justify="center" align="center" minH="400px">
+          <Spinner size="xl" color="blue.500" thickness="4px" />
+        </Flex>
+      ) : (
+        <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
+          {/* Outpatient Schedule */}
+          <Box>
+            <Heading size="md" mb={4} color="blue.600">
+              Lịch khám ngoại trú
+            </Heading>
+            <VStack spacing={4} align="stretch">
+              {scheduleData.length > 0 ? (
+                scheduleData.map((appointment) => (
+                  <Box
+                    key={appointment._id}
+                    bg="white"
+                    p={4}
+                    borderRadius="lg"
+                    boxShadow="md"
+                    border="1px solid"
+                    borderColor="gray.200"
+                    _hover={{ boxShadow: "lg", borderColor: "blue.300" }}
+                    cursor="pointer"
+                    transition="all 0.2s"
+                  >
+                    <Flex justify="space-between" align="start" mb={2}>
+                      <HStack spacing={2}>
+                        <Icon as={MdAccessTime} color="blue.500" />
+                        <Text fontWeight="bold" color="blue.600">
+                          {appointment.timeSlot || appointment.time_slot}
+                        </Text>
+                      </HStack>
+                      <Badge colorScheme={getStatusColor(appointment.status)} px={3} py={1} borderRadius="full">
+                        {appointment.status === "confirmed"
+                          ? "Đã xác nhận"
+                          : appointment.status === "pending"
+                          ? "Chờ xác nhận"
+                          : appointment.status === "checked_in"
+                          ? "Đã check-in"
+                          : appointment.status === "cancelled"
+                          ? "Đã hủy"
+                          : appointment.status}
+                      </Badge>
+                    </Flex>
+                    <VStack align="start" spacing={1} pl={6}>
+                      <Text fontWeight="semibold" fontSize="lg">
+                        {appointment.patientId?.userId?.fullName || "N/A"}
+                      </Text>
+                      <Text fontSize="sm" color="gray.600">
+                        SĐT: {appointment.patientId?.userId?.phone || "N/A"} • {appointment.reason || "Khám tổng quát"}
+                      </Text>
+                      <Text fontSize="sm" color="gray.500">
+                        {appointment.departmentId?.name || "Chưa có thông tin"}
+                      </Text>
+                    </VStack>
+                  </Box>
+                ))
+              ) : (
+                <Box bg="white" p={8} borderRadius="lg" textAlign="center">
+                  <Text color="gray.500">Không có lịch khám nào trong ngày này</Text>
+                </Box>
+              )}
+            </VStack>
+          </Box>
 
-        {/* Inpatient Rounds */}
-        <Box>
-          <Heading size="md" mb={4} color="green.600">
-            Bệnh nhân nội trú theo dõi
-          </Heading>
-          <VStack spacing={4} align="stretch">
-            {inpatientRounds.map((patient) => (
-              <Box
-                key={patient.id}
-                bg="white"
-                p={4}
-                borderRadius="lg"
-                boxShadow="md"
-                border="1px solid"
-                borderColor="gray.200"
-                _hover={{ boxShadow: "lg", borderColor: "green.300" }}
-                cursor="pointer"
-                transition="all 0.2s"
-              >
-                <Flex justify="space-between" align="start" mb={2}>
-                  <Text fontWeight="bold" fontSize="lg" color="green.600">
-                    {patient.patientName}
-                  </Text>
-                  <Badge colorScheme="green" px={3} py={1} borderRadius="full">
-                    {patient.status}
-                  </Badge>
-                </Flex>
-                <VStack align="start" spacing={1}>
-                  <Text fontSize="sm" color="gray.600">
-                    Mã BN: {patient.patientId}
-                  </Text>
-                  <Text fontSize="sm" color="gray.600">
-                    Vị trí: {patient.room}
-                  </Text>
-                  <Text fontSize="sm" color="gray.600">
-                    Chẩn đoán: {patient.diagnosis}
-                  </Text>
-                  <Text fontSize="sm" color="gray.500">
-                    Nhập viện: {patient.admissionDate}
-                  </Text>
-                </VStack>
-              </Box>
-            ))}
-          </VStack>
-        </Box>
-      </SimpleGrid>
+          {/* Inpatient Rounds */}
+          <Box>
+            <Heading size="md" mb={4} color="green.600">
+              Bệnh nhân nội trú theo dõi
+            </Heading>
+            <Box bg="white" p={8} borderRadius="lg" textAlign="center">
+              <Text color="gray.500">Chức năng đang phát triển</Text>
+            </Box>
+          </Box>
+        </SimpleGrid>
+      )}
     </Container>
   );
 };

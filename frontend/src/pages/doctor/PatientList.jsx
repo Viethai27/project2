@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -20,13 +20,66 @@ import {
   Icon,
   HStack,
   Text,
+  Spinner,
+  useToast,
 } from "@chakra-ui/react";
 import { MdSearch, MdVisibility, MdDescription } from "react-icons/md";
+import { doctorAPI } from "../../services/api";
 
 const PatientList = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [patients, setPatients] = useState([]);
+  const [filteredPatients, setFilteredPatients] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setIsLoading(true);
+        const response = await doctorAPI.getPatients();
+        if (response.data.success) {
+          setPatients(response.data.data);
+          setFilteredPatients(response.data.data);
+        }
+      } catch (error) {
+        console.error("Error fetching patients:", error);
+        toast({
+          title: "Lỗi",
+          description: "Không thể tải danh sách bệnh nhân",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPatients();
+  }, [toast]);
+
+  useEffect(() => {
+    let filtered = patients;
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (patient) =>
+          patient.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          patient.phone?.includes(searchTerm)
+      );
+    }
+
+    // Filter by type
+    if (filterType !== "all") {
+      filtered = filtered.filter((patient) => patient.type === filterType);
+    }
+
+    setFilteredPatients(filtered);
+  }, [searchTerm, filterType, patients]);
 
   const handleViewPatient = (patientId) => {
     // Navigate to patient details page
@@ -40,98 +93,6 @@ const PatientList = () => {
     console.log('Xem bệnh án của bệnh nhân:', patientId);
     navigate('/doctor/medical-records', { state: { patientId } });
   };
-
-  // Fake patient data - Khoa Sản
-  const patients = [
-    {
-      id: "BN001",
-      name: "Nguyễn Thị Mai Anh",
-      age: 30,
-      gender: "Nữ",
-      phone: "0912345678",
-      type: "Ngoại trú",
-      lastVisit: "20/12/2025",
-      diagnosis: "Thai 12 tuần",
-      status: "Đang theo dõi",
-    },
-    {
-      id: "BN002",
-      name: "Trần Thị Hương",
-      age: 35,
-      gender: "Nữ",
-      phone: "0923456789",
-      type: "Ngoại trú",
-      lastVisit: "18/12/2025",
-      diagnosis: "Thai 28 tuần - Tiền sản giật",
-      status: "Đang điều trị",
-    },
-    {
-      id: "BN003",
-      name: "Lê Thị Phương",
-      age: 37,
-      gender: "Nữ",
-      phone: "0934567890",
-      type: "Ngoại trú",
-      lastVisit: "22/12/2025",
-      diagnosis: "Thai 35 tuần - Đái tháo đường thai kỳ",
-      status: "Đang điều trị",
-    },
-    {
-      id: "BN004",
-      name: "Phạm Thị Lan",
-      age: 33,
-      gender: "Nữ",
-      phone: "0945678901",
-      type: "Ngoại trú",
-      lastVisit: "15/12/2025",
-      diagnosis: "Thai 20 tuần - Thai đôi",
-      status: "Đang theo dõi",
-    },
-    {
-      id: "BN005",
-      name: "Hoàng Thị Thu",
-      age: 32,
-      gender: "Nữ",
-      phone: "0956789012",
-      type: "Ngoại trú",
-      lastVisit: "25/12/2025",
-      diagnosis: "Sau sinh 2 tuần - Kiểm tra sức khỏe",
-      status: "Tái khám",
-    },
-    {
-      id: "BN006",
-      name: "Vũ Thị Hoa",
-      age: 29,
-      gender: "Nữ",
-      phone: "0967890123",
-      type: "Ngoại trú",
-      lastVisit: "19/12/2025",
-      diagnosis: "Thai 8 tuần - Khám thai định kỳ",
-      status: "Đang theo dõi",
-    },
-    {
-      id: "BN007",
-      name: "Đỗ Thị Ngọc",
-      age: 34,
-      gender: "Nữ",
-      phone: "0978901234",
-      type: "Ngoại trú",
-      lastVisit: "21/12/2025",
-      diagnosis: "Thai 32 tuần - Ngôi ngược",
-      status: "Đang điều trị",
-    },
-    {
-      id: "BN008",
-      name: "Bùi Thị Thanh",
-      age: 31,
-      gender: "Nữ",
-      phone: "0989012345",
-      type: "Ngoại trú",
-      lastVisit: "17/12/2025",
-      diagnosis: "Thai 16 tuần - Sàng lọc NIPT",
-      status: "Đang theo dõi",
-    },
-  ];
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -148,16 +109,16 @@ const PatientList = () => {
     }
   };
 
-  const filteredPatients = patients.filter((patient) => {
-    const matchesSearch =
-      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.phone.includes(searchTerm);
-
-    const matchesFilter = filterType === "all" || patient.type === filterType;
-
-    return matchesSearch && matchesFilter;
-  });
+  const getTypeColor = (type) => {
+    switch (type) {
+      case "Ngoại trú":
+        return "blue";
+      case "Nội trú":
+        return "purple";
+      default:
+        return "gray";
+    }
+  };
 
   return (
     <Container maxW="7xl" py={6}>
@@ -166,106 +127,112 @@ const PatientList = () => {
         Danh sách bệnh nhân
       </Heading>
 
-      {/* Filters */}
-      <Flex gap={4} mb={6} flexWrap="wrap">
-        <InputGroup maxW="400px">
-          <InputLeftElement pointerEvents="none">
-            <Icon as={MdSearch} color="gray.400" />
-          </InputLeftElement>
-          <Input
-            placeholder="Tìm kiếm theo tên, mã BN, SĐT..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            bg="white"
-            borderColor="gray.300"
-          />
-        </InputGroup>
+      {isLoading ? (
+        <Flex justify="center" align="center" minH="400px">
+          <Spinner size="xl" color="blue.500" thickness="4px" />
+        </Flex>
+      ) : (
+        <>
+          {/* Filters */}
+          <Flex gap={4} mb={6} flexWrap="wrap">
+            <InputGroup maxW="400px">
+              <InputLeftElement pointerEvents="none">
+                <Icon as={MdSearch} color="gray.400" />
+              </InputLeftElement>
+              <Input
+                placeholder="Tìm kiếm theo tên, SĐT..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                bg="white"
+                borderColor="gray.300"
+              />
+            </InputGroup>
 
-        <Select
-          maxW="200px"
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          bg="white"
-          borderColor="gray.300"
-        >
-          <option value="all">Tất cả</option>
-          <option value="Ngoại trú">Ngoại trú</option>
-          <option value="Nội trú">Nội trú</option>
-        </Select>
-      </Flex>
+            <Select
+              maxW="200px"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              bg="white"
+              borderColor="gray.300"
+            >
+              <option value="all">Tất cả</option>
+              <option value="Ngoại trú">Ngoại trú</option>
+              <option value="Nội trú">Nội trú</option>
+            </Select>
+          </Flex>
 
-      {/* Patient Table */}
-      <Box bg="white" borderRadius="lg" boxShadow="md" overflow="hidden" border="1px solid" borderColor="gray.200">
-        <Table variant="simple">
-          <Thead bg="gray.50">
-            <Tr>
-              <Th>Mã BN</Th>
-              <Th>Họ tên</Th>
-              <Th>Tuổi</Th>
-              <Th>Giới tính</Th>
-              <Th>SĐT</Th>
-              <Th>Loại</Th>
-              <Th>Lần khám cuối</Th>
-              <Th>Chẩn đoán</Th>
-              <Th>Trạng thái</Th>
-              <Th>Thao tác</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {filteredPatients.length > 0 ? (
-              filteredPatients.map((patient) => (
-                <Tr key={patient.id} _hover={{ bg: "gray.50" }}>
-                  <Td fontWeight="bold" color="blue.600">
-                    {patient.id}
-                  </Td>
-                  <Td fontWeight="semibold">{patient.name}</Td>
-                  <Td>{patient.age}</Td>
-                  <Td>{patient.gender}</Td>
-                  <Td>{patient.phone}</Td>
-                  <Td>
-                    <Badge colorScheme={patient.type === "Nội trú" ? "purple" : "cyan"}>
-                      {patient.type}
-                    </Badge>
-                  </Td>
-                  <Td>{patient.lastVisit}</Td>
-                  <Td>{patient.diagnosis}</Td>
-                  <Td>
-                    <Badge colorScheme={getStatusColor(patient.status)} px={2} py={1} borderRadius="md">
-                      {patient.status}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    <HStack spacing={2}>
-                      <Button 
-                        size="sm" 
-                        colorScheme="blue" 
-                        leftIcon={<MdVisibility />}
-                        onClick={() => handleViewPatient(patient.id)}
-                      >
-                        Xem
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        colorScheme="green" 
-                        leftIcon={<MdDescription />}
-                        onClick={() => handleViewMedicalRecord(patient.id)}
-                      >
-                        Bệnh án
-                      </Button>
-                    </HStack>
-                  </Td>
+          {/* Patient Table */}
+          <Box bg="white" borderRadius="lg" boxShadow="md" overflow="hidden" border="1px solid" borderColor="gray.200">
+            <Table variant="simple">
+              <Thead bg="gray.50">
+                <Tr>
+                  <Th>Họ tên</Th>
+                  <Th>Tuổi</Th>
+                  <Th>Giới tính</Th>
+                  <Th>SĐT</Th>
+                  <Th>Loại</Th>
+                  <Th>Lần khám cuối</Th>
+                  <Th>Số lịch hẹn</Th>
+                  <Th>Thao tác</Th>
                 </Tr>
-              ))
-            ) : (
-              <Tr>
-                <Td colSpan={10} textAlign="center" py={8}>
-                  <Text color="gray.500">Không tìm thấy bệnh nhân</Text>
-                </Td>
-              </Tr>
-            )}
-          </Tbody>
-        </Table>
-      </Box>
+              </Thead>
+              <Tbody>
+                {filteredPatients.length > 0 ? (
+                  filteredPatients.map((patient) => (
+                    <Tr key={patient._id} _hover={{ bg: "gray.50" }}>
+                      <Td fontWeight="semibold">{patient.patientName}</Td>
+                      <Td>{patient.age}</Td>
+                      <Td>{patient.gender}</Td>
+                      <Td>{patient.phone}</Td>
+                      <Td>
+                        <Badge colorScheme={getTypeColor(patient.type)}>
+                          {patient.type}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        {patient.lastVisit
+                          ? new Date(patient.lastVisit).toLocaleDateString("vi-VN")
+                          : "Chưa có"}
+                      </Td>
+                      <Td>
+                        <Badge colorScheme="blue">{patient.appointmentCount}</Badge>
+                      </Td>
+                      <Td>
+                        <HStack spacing={2}>
+                          <Button
+                            size="sm"
+                            leftIcon={<Icon as={MdVisibility} />}
+                            colorScheme="blue"
+                            variant="outline"
+                            onClick={() => handleViewPatient(patient._id)}
+                          >
+                            Xem
+                          </Button>
+                          <Button
+                            size="sm"
+                            leftIcon={<Icon as={MdDescription} />}
+                            colorScheme="green"
+                            variant="outline"
+                            onClick={() => handleViewMedicalRecord(patient._id)}
+                          >
+                            Bệnh án
+                          </Button>
+                        </HStack>
+                      </Td>
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td colSpan={8} textAlign="center" py={8}>
+                      <Text color="gray.500">Không tìm thấy bệnh nhân</Text>
+                    </Td>
+                  </Tr>
+                )}
+              </Tbody>
+            </Table>
+          </Box>
+        </>
+      )}
     </Container>
   );
 };

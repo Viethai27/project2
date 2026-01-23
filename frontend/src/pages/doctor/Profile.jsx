@@ -20,7 +20,7 @@ import {
 } from "@chakra-ui/react";
 import { MdEdit, MdSave, MdLock, MdPerson, MdEmail, MdPhone, MdBadge } from "react-icons/md";
 import { useState, useEffect } from "react";
-import api from "../../services/api";
+import { authAPI } from "../../services/api";
 
 const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
@@ -33,7 +33,7 @@ const Profile = () => {
     const fetchProfile = async () => {
       try {
         setIsLoading(true);
-        const response = await api.getProfile();
+        const response = await authAPI.getProfile();
         
         if (response.data.success && response.data.user) {
           const userData = response.data.user;

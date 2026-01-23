@@ -88,4 +88,12 @@ export const medicalRecordAPI = {
   addClinicalTests: (id, data) => api.put(`/medical-records/${id}/clinical-tests`, data)
 };
 
+// Doctor API
+export const doctorAPI = {
+  getDashboardStats: () => api.get('/doctor/dashboard/stats'),
+  getUpcomingAppointments: () => api.get('/doctor/dashboard/appointments'),
+  getPatients: () => api.get('/doctor/patients'),
+  getAppointmentsByDate: (date) => api.get(`/doctor/appointments/date/${date}`)
+};
+
 export default api;

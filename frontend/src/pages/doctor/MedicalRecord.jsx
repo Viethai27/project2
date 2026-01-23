@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Box,
   Container,
@@ -20,19 +21,89 @@ import {
   Select,
   Flex,
   Icon,
+  Spinner,
+  useToast,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import { MdPerson, MdSave, MdAdd } from "react-icons/md";
+import { patientAPI, authAPI } from "../../services/api";
 
 const MedicalRecord = () => {
-  const [selectedPatient, setSelectedPatient] = useState({
-    id: "BN001",
-    name: "Nguyễn Thị Mai Anh",
-    age: 30,
-    gender: "Nữ",
-    phone: "0912345678",
-    address: "123 Lê Văn Việt, Q.9, TP.HCM",
-    insurance: "DN3000123456789",
-  });
+  const location = useLocation();
+  const toast = useToast();
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [doctorInfo, setDoctorInfo] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const patientId = location.state?.patientId;
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch doctor info
+        const doctorResponse = await authAPI.getProfile();
+        if (doctorResponse.data.success) {
+          setDoctorInfo(doctorResponse.data.data);
+        }
+        
+        // Fetch patient info if patientId exists
+        if (patientId) {
+          const patientResponse = await patientAPI.getById(patientId);
+          if (patientResponse.data.success) {
+            const patient = patientResponse.data.data;
+            setSelectedPatient({
+              _id: patient._id,
+              id: patient.patientCode || "N/A",
+              name: patient.userId?.fullName || "N/A",
+              age: patient.userId?.dateOfBirth 
+                ? new Date().getFullYear() - new Date(patient.userId.dateOfBirth).getFullYear()
+                : "N/A",
+              gender: patient.userId?.gender || "N/A",
+              phone: patient.userId?.phone || "N/A",
+              address: patient.userId?.address || "N/A",
+              insurance: patient.insuranceId || "Không có",
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: 'Lỗi',
+          description: 'Không thể tải thông tin bệnh nhân',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [patientId, toast]);
+
+  if (isLoading) {
+    return (
+      <Container maxW="7xl" py={6}>
+        <Flex justify="center" align="center" minH="400px">
+          <Spinner size="xl" color="blue.500" thickness="4px" />
+        </Flex>
+      </Container>
+    );
+  }
+
+  if (!selectedPatient) {
+    return (
+      <Container maxW="7xl" py={6}>
+        <Alert status="warning">
+          <AlertIcon />
+          Vui lòng chọn bệnh nhân từ danh sách bệnh nhân
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
     <Container maxW="7xl" py={6}>
@@ -40,6 +111,18 @@ const MedicalRecord = () => {
       <Heading size="xl" mb={6} color="gray.700">
         Bệnh án
       </Heading>
+
+      {/* Doctor Info */}
+      {doctorInfo && (
+        <Box bg="blue.50" p={4} borderRadius="lg" mb={4} border="1px solid" borderColor="blue.200">
+          <HStack spacing={2}>
+            <Text fontWeight="semibold" color="blue.700">Bác sĩ khám:</Text>
+            <Text color="blue.600">{doctorInfo.userId?.fullName}</Text>
+            <Text color="gray.500">•</Text>
+            <Text color="gray.600">{doctorInfo.specialty}</Text>
+          </HStack>
+        </Box>
+      )}
 
       {/* Patient Info Header */}
       <Box bg="white" p={6} borderRadius="lg" boxShadow="md" mb={6} border="1px solid" borderColor="gray.200">
