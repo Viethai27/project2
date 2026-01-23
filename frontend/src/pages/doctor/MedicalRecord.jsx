@@ -44,27 +44,44 @@ const MedicalRecord = () => {
         
         // Fetch doctor info
         const doctorResponse = await authAPI.getProfile();
-        if (doctorResponse.data.success) {
-          setDoctorInfo(doctorResponse.data.data);
+        if (doctorResponse.data.success && doctorResponse.data.user) {
+          setDoctorInfo(doctorResponse.data.user);
         }
         
         // Fetch patient info if patientId exists
         if (patientId) {
           const patientResponse = await patientAPI.getById(patientId);
+          console.log('Patient API response:', patientResponse.data);
           if (patientResponse.data.success) {
-            const patient = patientResponse.data.data;
-            setSelectedPatient({
-              _id: patient._id,
-              id: patient.patientCode || "N/A",
-              name: patient.userId?.fullName || "N/A",
-              age: patient.userId?.dateOfBirth 
-                ? new Date().getFullYear() - new Date(patient.userId.dateOfBirth).getFullYear()
-                : "N/A",
-              gender: patient.userId?.gender || "N/A",
-              phone: patient.userId?.phone || "N/A",
-              address: patient.userId?.address || "N/A",
-              insurance: patient.insuranceId || "Không có",
-            });
+            // Handle both 'data' and 'patient' response formats
+            const patient = patientResponse.data.data || patientResponse.data.patient;
+            console.log('Patient data:', patient);
+            
+            if (patient) {
+              // Calculate age from dob (patient field, not user field)
+              let age = 'N/A';
+              if (patient.dob) {
+                const dob = new Date(patient.dob);
+                age = new Date().getFullYear() - dob.getFullYear();
+              }
+              
+              // Gender mapping
+              let gender = 'N/A';
+              if (patient.gender === 'female') gender = 'Nữ';
+              else if (patient.gender === 'male') gender = 'Nam';
+              else if (patient.gender === 'other') gender = 'Khác';
+              
+              setSelectedPatient({
+                _id: patient._id,
+                id: patient.patientCode || "N/A",
+                name: patient.full_name || patient.user?.username || "N/A",
+                age: age,
+                gender: gender,
+                phone: patient.user?.phone || "N/A",
+                address: patient.address || "N/A",
+                insurance: patient.insuranceId || "Không có",
+              });
+            }
           }
         }
       } catch (error) {

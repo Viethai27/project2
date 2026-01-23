@@ -57,7 +57,7 @@ export const getPatientById = async (req, res) => {
 
     res.json({
       success: true,
-      patient,
+      data: patient,
     });
   } catch (error) {
     res.status(404).json({

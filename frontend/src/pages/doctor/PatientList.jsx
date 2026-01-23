@@ -40,7 +40,9 @@ const PatientList = () => {
       try {
         setIsLoading(true);
         const response = await doctorAPI.getPatients();
+        console.log("Patients API Response:", response.data);
         if (response.data.success) {
+          console.log("Patients data:", response.data.data);
           setPatients(response.data.data);
           setFilteredPatients(response.data.data);
         }

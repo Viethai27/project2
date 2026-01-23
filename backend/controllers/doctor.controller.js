@@ -115,7 +115,7 @@ export const getUpcomingAppointments = async (req, res) => {
       path: 'patient',
       populate: {
         path: 'user',
-        select: 'fullName phone'
+        select: 'username fullName phone'
       }
     })
     .sort({ appointment_date: 1, time_slot: 1 })
@@ -130,11 +130,11 @@ export const getUpcomingAppointments = async (req, res) => {
       appointmentDate: apt.appointment_date,
       patientId: apt.patient ? {
         userId: {
-          fullName: apt.patient?.user?.fullName || apt.patient_name || 'Chưa có thông tin'
+          fullName: apt.patient?.user?.fullName || apt.patient?.user?.username || 'Chưa có thông tin'
         }
       } : {
         userId: {
-          fullName: apt.patient_name || 'Chưa có thông tin'
+          fullName: 'Chưa có thông tin'
         }
       }
     }));
@@ -168,47 +168,53 @@ export const getDoctorPatients = async (req, res) => {
       });
     }
 
-    // Get all appointments of this doctor
+    // Get all appointments of this doctor with patient populated
     const appointments = await Appointment.find({
-      doctor: doctor._id
+      doctor: doctor._id,
+      patient: { $exists: true }
+    })
+    .populate({
+      path: 'patient',
+      populate: {
+        path: 'user',
+        select: 'username phone'
+      }
     })
     .sort({ appointment_date: -1 });
+
+    console.log('Found appointments:', appointments.length);
+    if (appointments.length > 0) {
+      console.log('Sample appointment patient:', appointments[0].patient);
+    }
 
     // Extract unique patients
     const patientsMap = new Map();
     
     for (const apt of appointments) {
-      let patientKey;
-      let patientData;
+      if (!apt.patient) continue;
       
-      if (apt.patient) {
-        // Patient with account
-        patientKey = apt.patient.toString();
-      } else if (apt.patient_phone) {
-        // Patient without account (walk-in)
-        patientKey = apt.patient_phone;
-      } else {
-        continue;
-      }
+      const patientKey = apt.patient._id.toString();
 
       if (!patientsMap.has(patientKey)) {
         // Calculate age from DOB
         let age = 'N/A';
-        if (apt.patient_dob) {
-          const dob = new Date(apt.patient_dob);
+        if (apt.patient.dob) {
+          const dob = new Date(apt.patient.dob);
           age = new Date().getFullYear() - dob.getFullYear();
         }
 
-        patientData = {
-          _id: apt.patient || apt._id,
-          patientName: apt.patient_name || 'Chưa có tên',
+        const patientData = {
+          _id: apt.patient._id,
+          patientName: apt.patient.full_name || apt.patient.user?.username || 'Chưa có tên',
           age: age,
-          gender: apt.patient_gender === 'female' ? 'Nữ' : apt.patient_gender === 'male' ? 'Nam' : 'Khác',
-          phone: apt.patient_phone || 'Chưa có SĐT',
+          gender: apt.patient.gender === 'female' ? 'Nữ' : apt.patient.gender === 'male' ? 'Nam' : 'Khác',
+          phone: apt.patient.user?.phone || 'Chưa có SĐT',
           type: 'Ngoại trú',
           lastVisit: apt.appointment_date,
           appointmentCount: 1
         };
+        
+        console.log('Adding patient:', patientData.patientName, patientData.phone);
         patientsMap.set(patientKey, patientData);
       } else {
         // Increment appointment count
@@ -223,6 +229,7 @@ export const getDoctorPatients = async (req, res) => {
     }
 
     const patients = Array.from(patientsMap.values());
+    console.log('Returning patients:', patients.length);
 
     res.json({
       success: true,
@@ -267,20 +274,33 @@ export const getAppointmentsByDate = async (req, res) => {
         $gte: selectedDate,
         $lt: nextDay
       }
-    }).sort({ time_slot: 1 });
+    })
+    .populate({
+      path: 'patient',
+      populate: {
+        path: 'user',
+        select: 'username fullName phone'
+      }
+    })
+    .sort({ time_slot: 1 });
 
     // Format appointments
     const formattedAppointments = appointments.map(apt => ({
       _id: apt._id,
-      time: apt.time_slot || 'N/A',
-      patientName: apt.patient_name || 'Chưa có tên',
-      patientId: apt.patient_phone || 'N/A',
-      type: apt.reason || 'Khám bệnh',
-      status: apt.status === 'checked_in' ? 'Hoàn thành' : 
-              apt.status === 'confirmed' ? 'Chờ khám' : 
-              apt.status === 'pending' ? 'Chờ khám' :
-              apt.status === 'cancelled' ? 'Đã hủy' : 'Chờ khám',
-      room: 'Phòng Khám Sản',
+      timeSlot: apt.time_slot || 'N/A',
+      patientId: apt.patient ? {
+        userId: {
+          fullName: apt.patient?.user?.fullName || apt.patient?.user?.username || 'Chưa có tên',
+          phone: apt.patient?.user?.phone || 'N/A'
+        }
+      } : {
+        userId: {
+          fullName: 'Chưa có tên',
+          phone: 'N/A'
+        }
+      },
+      reason: apt.reason || 'Khám bệnh',
+      status: apt.status,
       appointmentDate: apt.appointment_date
     }));
 

@@ -57,7 +57,7 @@ class PatientService {
 
   // Get patient by ID
   async getPatientById(patientId) {
-    const patient = await Patient.findById(patientId).populate('user', 'username email');
+    const patient = await Patient.findById(patientId).populate('user', 'username email phone');
     
     if (!patient) {
       throw new Error('Không tìm thấy bệnh nhân');
