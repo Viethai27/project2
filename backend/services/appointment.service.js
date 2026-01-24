@@ -2,6 +2,8 @@ import Appointment from '../models/4. APPOINTMENT_VISIT/Appointment.model.js';
 import Patient from '../models/3. PATIENT_INSURANCE/Patient.model.js';
 import Doctor from '../models/1. AUTH/Doctor.model.js';
 import DoctorTimeSlot from '../models/4. APPOINTMENT_VISIT/DoctorTimeSlot.model.js';
+import Department from '../models/2. CATALOGUE_FACILYTY/Department.model.js';
+import mongoose from 'mongoose';
 
 class AppointmentService {
   // Create new appointment
@@ -14,15 +16,76 @@ class AppointmentService {
       gender,
       dateOfBirth,
       reason,
-      appointmentDate, 
-      timeSlot, 
+      appointmentDate,
+      appointment_date,
+      timeSlot,
+      time_slot,
       department, 
-      doctor: doctorName,
+      doctor,
+      patient: patientRef,
       patientId, 
       doctorId, 
       slotId,
       status = 'pending'
     } = appointmentData;
+
+    // Support both camelCase and snake_case
+    const finalAppointmentDate = appointmentDate || appointment_date;
+    const finalTimeSlot = timeSlot || time_slot;
+    const finalPatientId = patientRef || patientId;
+    const finalDoctorId = doctor || doctorId;
+
+    // Convert department name to ObjectId if needed
+    let finalDepartmentId = department;
+    if (department && !mongoose.Types.ObjectId.isValid(department)) {
+      // Department is a name, need to find the ObjectId
+      const deptDoc = await Department.findOne({ name: department });
+      if (!deptDoc) {
+        throw new Error(`Không tìm thấy khoa: ${department}`);
+      }
+      finalDepartmentId = deptDoc._id;
+      console.log(`🏥 Converted department "${department}" to ID: ${finalDepartmentId}`);
+    }
+
+    console.log('📋 Creating appointment with:', {
+      patient: finalPatientId,
+      doctor: finalDoctorId,
+      date: finalAppointmentDate,
+      time: finalTimeSlot,
+      department: finalDepartmentId,
+      publicBooking: !!(fullName || name)
+    });
+
+    // If we have patient ID and doctor ID (receptionist booking)
+    if (finalPatientId && finalDoctorId && finalAppointmentDate && finalTimeSlot) {
+      // Verify patient exists
+      const patient = await Patient.findById(finalPatientId);
+      if (!patient) {
+        throw new Error('Không tìm thấy bệnh nhân');
+      }
+
+      // Verify doctor exists
+      const doctor = await Doctor.findById(finalDoctorId);
+      if (!doctor) {
+        throw new Error('Không tìm thấy bác sĩ');
+      }
+
+      // Create appointment with patient and doctor references
+      const appointment = await Appointment.create({
+        patient: finalPatientId,
+        doctor: finalDoctorId,
+        appointment_date: finalAppointmentDate,
+        time_slot: finalTimeSlot,
+        department: finalDepartmentId,
+        reason: reason || 'Khám bệnh',
+        status: status,
+      });
+
+      await appointment.populate(['patient', 'doctor']);
+      
+      console.log('✅ Appointment created:', appointment._id);
+      return appointment;
+    }
 
     // If we have fullName or name with email and phone - create simplified appointment (for public booking)
     const patientName = fullName || name;
@@ -35,26 +98,31 @@ class AppointmentService {
         patient_gender: gender,
         patient_dob: dateOfBirth,
         reason: reason,
-        appointment_date: appointmentDate,
-        time_slot: timeSlot,
-        department: department,
-        doctor_name: doctorName,
+        appointment_date: finalAppointmentDate,
+        time_slot: finalTimeSlot,
+        department: finalDepartmentId,
+        doctor: finalDoctorId, // Save doctor ID instead of name
         status: status,
       });
 
+      console.log('✅ Public appointment created:', appointment._id);
       return appointment;
     }
 
-    // Otherwise use the old logic with patientId, doctorId, slotId
+    // Old logic with slotId
+    if (!slotId) {
+      throw new Error('Thiếu thông tin đặt lịch. Vui lòng chọn bệnh nhân, bác sĩ, ngày và giờ khám.');
+    }
+
     // Verify patient exists
-    const patient = await Patient.findById(patientId);
-    if (!patient) {
+    const patientDoc = await Patient.findById(finalPatientId);
+    if (!patientDoc) {
       throw new Error('Không tìm thấy bệnh nhân');
     }
 
     // Verify doctor exists
-    const doctor = await Doctor.findById(doctorId);
-    if (!doctor) {
+    const doctorDoc = await Doctor.findById(finalDoctorId);
+    if (!doctorDoc) {
       throw new Error('Không tìm thấy bác sĩ');
     }
 
@@ -74,8 +142,8 @@ class AppointmentService {
 
     // Create appointment
     const appointment = await Appointment.create({
-      patient: patientId,
-      doctor: doctorId,
+      patient: finalPatientId,
+      doctor: finalDoctorId,
       slot: slotId,
       queue_number,
       status: 'booked',

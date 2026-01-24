@@ -15,6 +15,13 @@ const router = express.Router();
 // All routes require authentication
 router.use(authMiddleware);
 
+// Meta endpoints MUST come before /:id routes
+// Get departments
+router.get('/meta/departments', getDepartments);
+
+// Get doctors by department
+router.get('/meta/doctors', getDoctorsByDepartment);
+
 // Get all appointments
 router.get('/', getAllAppointments);
 
@@ -29,11 +36,5 @@ router.put('/:id', roleMiddleware(['receptionist', 'doctor']), updateAppointment
 
 // Cancel appointment
 router.put('/:id/cancel', roleMiddleware(['receptionist', 'doctor']), cancelAppointment);
-
-// Get departments
-router.get('/meta/departments', getDepartments);
-
-// Get doctors by department
-router.get('/meta/doctors', getDoctorsByDepartment);
 
 export default router;

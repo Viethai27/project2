@@ -21,9 +21,11 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { MdSearch, MdPersonAdd, MdSave } from "react-icons/md";
+import { useNavigate } from "react-router-dom";
 import patientService from "../../services/patientService";
 
 const PatientRegistration = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [patientFound, setPatientFound] = useState(null);
   const [isNewPatient, setIsNewPatient] = useState(false);
@@ -62,17 +64,18 @@ const PatientRegistration = () => {
       
       if (result && result.patient) {
         setPatientFound(result.patient);
+        const patient = result.patient;
         setFormData({
-          fullName: result.patient.fullName || "",
-          dateOfBirth: result.patient.dateOfBirth || "",
-          idCard: result.patient.idCard || "",
-          phone: result.patient.phone || "",
-          address: result.patient.address || "",
-          email: result.patient.email || "",
-          emergencyContact: result.patient.emergencyContact || "",
-          emergencyPhone: result.patient.emergencyPhone || "",
+          fullName: patient.full_name || patient.fullName || "",
+          dateOfBirth: patient.dob || patient.dateOfBirth || "",
+          idCard: patient.id_card || patient.idCard || "",
+          phone: patient.phone || patient.user?.phone || "",
+          address: patient.address || "",
+          email: patient.email || patient.user?.email || "",
+          emergencyContact: patient.emergency_contact || patient.emergencyContact || "",
+          emergencyPhone: patient.emergency_phone || patient.emergencyPhone || "",
         });
-        setGender(result.patient.gender || "male");
+        setGender(patient.gender || "male");
         setIsNewPatient(false);
         
         toast({
@@ -136,7 +139,12 @@ const PatientRegistration = () => {
       setIsSaving(true);
       
       const patientData = {
-        ...formData,
+        full_name: formData.fullName,
+        dob: formData.dateOfBirth,
+        id_card: formData.idCard,
+        phone: formData.phone,
+        address: formData.address,
+        email: formData.email,
         gender,
       };
 
@@ -153,10 +161,11 @@ const PatientRegistration = () => {
       } else {
         // Create new patient
         const result = await patientService.createPatient(patientData);
+        console.log('🎉 Patient created:', result);
         setPatientFound(result.patient);
         toast({
           title: "Tạo hồ sơ thành công",
-          description: `Mã bệnh nhân: ${result.patient.patientId}`,
+          description: `Bệnh nhân: ${result.patient.full_name}`,
           status: "success",
           duration: 3000,
           isClosable: true,
@@ -176,14 +185,76 @@ const PatientRegistration = () => {
   };
 
   const handleSaveAndRegister = async () => {
-    await handleSave();
-    // Navigate to appointment registration page
-    toast({
-      title: "Chuyển sang đăng ký khám",
-      status: "info",
-      duration: 2000,
-      isClosable: true,
-    });
+    // Validation
+    if (!formData.fullName.trim() || !formData.phone.trim()) {
+      toast({
+        title: "Vui lòng nhập đầy đủ thông tin bắt buộc",
+        description: "Họ tên và số điện thoại là bắt buộc",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      const patientData = {
+        full_name: formData.fullName,
+        dob: formData.dateOfBirth,
+        id_card: formData.idCard,
+        phone: formData.phone,
+        address: formData.address,
+        email: formData.email,
+        gender,
+      };
+
+      let savedPatient = null;
+
+      if (patientFound) {
+        // Update existing patient
+        await patientService.updatePatient(patientFound._id, patientData);
+        savedPatient = patientFound;
+        toast({
+          title: "Cập nhật thành công",
+          description: "Thông tin bệnh nhân đã được cập nhật",
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      } else {
+        // Create new patient
+        const result = await patientService.createPatient(patientData);
+        console.log('🎉 Patient created for registration:', result);
+        savedPatient = result.patient;
+        toast({
+          title: "Tạo hồ sơ thành công",
+          description: `Bệnh nhân: ${result.patient.full_name}`,
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      }
+
+      // Navigate to appointment registration page with patient data
+      setTimeout(() => {
+        navigate('/receptionist/appointment-registration', {
+          state: { patient: savedPatient }
+        });
+      }, 500);
+
+    } catch (error) {
+      toast({
+        title: "Lỗi lưu thông tin",
+        description: error.message,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -264,7 +335,8 @@ const PatientRegistration = () => {
                   <FormLabel fontWeight="semibold">Họ và tên</FormLabel>
                   <Input
                     placeholder="Nhập họ tên"
-                    defaultValue={patientFound?.name}
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({...formData, fullName: e.target.value})}
                     isReadOnly={!!patientFound}
                     bg={patientFound ? "gray.100" : "white"}
                   />
@@ -274,7 +346,8 @@ const PatientRegistration = () => {
                   <FormLabel fontWeight="semibold">Ngày sinh</FormLabel>
                   <Input
                     type="date"
-                    defaultValue={patientFound?.dob}
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})}
                     isReadOnly={!!patientFound}
                     bg={patientFound ? "gray.100" : "white"}
                   />
@@ -283,7 +356,7 @@ const PatientRegistration = () => {
                 <FormControl isRequired>
                   <FormLabel fontWeight="semibold">Giới tính</FormLabel>
                   <RadioGroup
-                    value={patientFound?.gender === "Nam" ? "male" : gender}
+                    value={gender}
                     onChange={setGender}
                     isDisabled={!!patientFound}
                   >
@@ -302,7 +375,8 @@ const PatientRegistration = () => {
                   <FormLabel fontWeight="semibold">CCCD/CMND</FormLabel>
                   <Input
                     placeholder="Nhập số CCCD"
-                    defaultValue={patientFound?.idCard}
+                    value={formData.idCard}
+                    onChange={(e) => setFormData({...formData, idCard: e.target.value})}
                     isReadOnly={!!patientFound}
                     bg={patientFound ? "gray.100" : "white"}
                   />
@@ -312,20 +386,27 @@ const PatientRegistration = () => {
                   <FormLabel fontWeight="semibold">Số điện thoại</FormLabel>
                   <Input
                     placeholder="Nhập số điện thoại"
-                    defaultValue={patientFound?.phone}
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   />
                 </FormControl>
 
                 <FormControl>
                   <FormLabel fontWeight="semibold">Email</FormLabel>
-                  <Input placeholder="Nhập email" type="email" />
+                  <Input 
+                    placeholder="Nhập email" 
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  />
                 </FormControl>
 
                 <FormControl isRequired gridColumn={{ base: "1", md: "1 / 3" }}>
                   <FormLabel fontWeight="semibold">Địa chỉ</FormLabel>
                   <Input
                     placeholder="Nhập địa chỉ"
-                    defaultValue={patientFound?.address}
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
                   />
                 </FormControl>
               </SimpleGrid>

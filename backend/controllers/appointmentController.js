@@ -187,25 +187,90 @@ export const cancelAppointment = async (req, res) => {
 
 export const getDepartments = async (req, res) => {
   try {
-    res.json({ departments });
+    const Department = (await import('../models/2. CATALOGUE_FACILYTY/Department.model.js')).default;
+    const departments = await Department.find().select('_id name').lean();
+    console.log('📋 Found departments:', departments.length);
+    res.json({ 
+      success: true,
+      data: departments 
+    });
   } catch (error) {
-    console.error('Get departments error:', error);
-    res.status(500).json({ message: 'Lỗi server' });
+    console.error('❌ Get departments error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Lỗi khi lấy danh sách khoa' 
+    });
   }
 };
 
 export const getDoctorsByDepartment = async (req, res) => {
   try {
     const { departmentId } = req.query;
-
-    let filteredDoctors = doctors;
-    if (departmentId) {
-      filteredDoctors = doctors.filter(d => d.departmentId === departmentId);
+    const Doctor = (await import('../models/1. AUTH/Doctor.model.js')).default;
+    const Employer = (await import('../models/1. AUTH/Employer.model.js')).default;
+    const Department = (await import('../models/2. CATALOGUE_FACILYTY/Department.model.js')).default;
+    const mongoose = (await import('mongoose')).default;
+    
+    console.log('👨‍⚕️ Fetching doctors for department:', departmentId);
+    
+    if (!departmentId) {
+      return res.json({ 
+        success: true,
+        data: [] 
+      });
     }
-
-    res.json({ doctors: filteredDoctors });
+    
+    // Check if departmentId is a valid ObjectId or a name
+    let actualDepartmentId = departmentId;
+    
+    if (!mongoose.Types.ObjectId.isValid(departmentId)) {
+      // It's not a valid ObjectId, so it might be a department name
+      console.log('🔍 Department ID is not ObjectId, searching by name...');
+      const dept = await Department.findOne({ name: departmentId }).select('_id').lean();
+      if (!dept) {
+        console.log('❌ Department not found with name:', departmentId);
+        return res.json({ 
+          success: true,
+          data: [] 
+        });
+      }
+      actualDepartmentId = dept._id;
+      console.log('✅ Found department by name, ID:', actualDepartmentId);
+    }
+    
+    // Find employers in the department
+    const employers = await Employer.find({ department: actualDepartmentId }).select('_id').lean();
+    const employerIds = employers.map(e => e._id);
+    
+    console.log(`📋 Found ${employerIds.length} employers in department`);
+    
+    // Find doctors with those employers
+    const doctors = await Doctor.find({ 
+      employer: { $in: employerIds },
+      status: 'active' 
+    })
+      .select('_id full_name specialty specialization experience_years employer')
+      .populate({
+        path: 'employer',
+        select: 'department position',
+        populate: {
+          path: 'department',
+          select: 'name'
+        }
+      })
+      .lean();
+    
+    console.log(`👨‍⚕️ Found ${doctors.length} doctors`);
+    
+    res.json({ 
+      success: true,
+      data: doctors 
+    });
   } catch (error) {
-    console.error('Get doctors error:', error);
-    res.status(500).json({ message: 'Lỗi server' });
+    console.error('❌ Get doctors error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Lỗi khi lấy danh sách bác sĩ' 
+    });
   }
 };

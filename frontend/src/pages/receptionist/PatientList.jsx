@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Container,
@@ -20,72 +20,71 @@ import {
   HStack,
   Text,
   VStack,
+  Spinner,
+  useToast,
 } from "@chakra-ui/react";
 import { MdSearch, MdVisibility, MdHistory } from "react-icons/md";
+import { patientAPI } from "../../services/api";
 
 const PatientList = () => {
+  const toast = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterDepartment, setFilterDepartment] = useState("all");
+  const [patients, setPatients] = useState([]);
+  const [filteredPatients, setFilteredPatients] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Fake patient data
-  const patients = [
-    {
-      id: "BN001",
-      name: "Nguyễn Văn A",
-      dob: "15/05/1980",
-      gender: "Nam",
-      phone: "0912345678",
-      type: "Ngoại trú",
-      department: "Khoa Nội",
-      lastVisit: "20/12/2025",
-      status: "Đang khám",
-    },
-    {
-      id: "BN002",
-      name: "Trần Thị B",
-      dob: "22/08/1992",
-      gender: "Nữ",
-      phone: "0987654321",
-      type: "Nội trú",
-      department: "Khoa Sản",
-      lastVisit: "18/12/2025",
-      status: "Đang điều trị",
-    },
-    {
-      id: "BN003",
-      name: "Lê Văn C",
-      dob: "10/03/1975",
-      gender: "Nam",
-      phone: "0923456789",
-      type: "Ngoại trú",
-      department: "Khoa Ngoại",
-      lastVisit: "15/12/2025",
-      status: "Hoàn thành",
-    },
-    {
-      id: "BN004",
-      name: "Phạm Thị D",
-      dob: "05/11/1988",
-      gender: "Nữ",
-      phone: "0934567890",
-      type: "Ngoại trú",
-      department: "Khoa Nhi",
-      lastVisit: "22/12/2025",
-      status: "Chờ thanh toán",
-    },
-    {
-      id: "BN005",
-      name: "Hoàng Văn E",
-      dob: "18/07/1965",
-      gender: "Nam",
-      phone: "0945678901",
-      type: "Nội trú",
-      department: "Khoa Tim mạch",
-      lastVisit: "10/12/2025",
-      status: "Đang điều trị",
-    },
-  ];
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setIsLoading(true);
+        const response = await patientAPI.getAll();
+        console.log("Patients API Response:", response.data);
+        
+        if (response.data.success) {
+          const patientsData = response.data.patients || response.data.data || [];
+          console.log("Raw patients data:", patientsData);
+          console.log("First patient:", patientsData[0]);
+          
+          // Transform data to match UI requirements
+          const transformedPatients = patientsData.map(patient => {
+            const transformed = {
+              _id: patient._id,
+              id: patient.patientCode || patient._id.slice(-6).toUpperCase(),
+              name: patient.full_name || patient.user?.username || "N/A",
+              dob: patient.dob ? new Date(patient.dob).toLocaleDateString("vi-VN") : "N/A",
+              gender: patient.gender === 'female' ? 'Nữ' : patient.gender === 'male' ? 'Nam' : 'Khác',
+              phone: patient.user?.phone || patient.phone || "N/A",
+              type: "Ngoại trú", // Default, can be updated based on admission status
+              department: "Khoa Sản", // Default
+              lastVisit: patient.updatedAt ? new Date(patient.updatedAt).toLocaleDateString("vi-VN") : "N/A",
+              status: "Hoàn thành", // Default status
+            };
+            console.log("Transformed patient:", transformed);
+            return transformed;
+          });
+          
+          console.log("All transformed patients:", transformedPatients);
+          setPatients(transformedPatients);
+          setFilteredPatients(transformedPatients);
+        }
+      } catch (error) {
+        console.error("Error fetching patients:", error);
+        toast({
+          title: "Lỗi",
+          description: "Không thể tải danh sách bệnh nhân",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPatients();
+  }, [toast]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -106,17 +105,46 @@ const PatientList = () => {
     return type === "Nội trú" ? "purple" : "cyan";
   };
 
-  const filteredPatients = patients.filter((patient) => {
-    const matchesSearch =
-      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.phone.includes(searchTerm);
+  // Filter patients when search or filters change
+  useEffect(() => {
+    const filtered = patients.filter((patient) => {
+      // Improved search logic - more precise matching
+      let matchesSearch = true;
+      
+      if (searchTerm.trim()) {
+        const search = searchTerm.trim().toLowerCase();
+        const patientName = patient.name.toLowerCase();
+        const patientId = patient.id.toLowerCase();
+        const patientPhone = patient.phone;
+        
+        // Require at least 2 characters for search
+        if (search.length < 2) {
+          matchesSearch = false;
+        } else {
+          // For patient ID: exact match or starts with
+          const idMatch = patientId === search || patientId.startsWith(search);
+          
+          // For phone: exact match or starts with
+          const phoneMatch = patientPhone === search || patientPhone.startsWith(search);
+          
+          // For name: match complete words or starts with search term
+          // Split name into words and check if any word starts with search term
+          const nameWords = patientName.split(' ');
+          const nameMatch = nameWords.some(word => word.startsWith(search)) || 
+                           patientName.startsWith(search);
+          
+          matchesSearch = idMatch || phoneMatch || nameMatch;
+        }
+      }
 
-    const matchesStatus = filterStatus === "all" || patient.status === filterStatus;
-    const matchesDepartment = filterDepartment === "all" || patient.department === filterDepartment;
+      const matchesStatus = filterStatus === "all" || patient.status === filterStatus;
+      const matchesDepartment = filterDepartment === "all" || patient.department === filterDepartment;
 
-    return matchesSearch && matchesStatus && matchesDepartment;
-  });
+      return matchesSearch && matchesStatus && matchesDepartment;
+    });
+
+    setFilteredPatients(filtered);
+  }, [searchTerm, filterStatus, filterDepartment, patients]);
 
   return (
     <Container maxW="7xl" py={6}>
@@ -132,7 +160,7 @@ const PatientList = () => {
             <Icon as={MdSearch} color="gray.400" />
           </InputLeftElement>
           <Input
-            placeholder="Tìm kiếm theo tên, mã BN, SĐT..."
+            placeholder="Nhập tối thiểu 2 ký tự (tên, mã BN, SĐT)..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             bg="white"
@@ -170,18 +198,22 @@ const PatientList = () => {
         </Select>
       </Flex>
 
-      {/* Patient Table */}
-      <Box bg="white" borderRadius="lg" boxShadow="md" overflow="hidden" border="1px solid" borderColor="gray.200">
-        <Table variant="simple">
-          <Thead bg="gray.50">
-            <Tr>
-              <Th>Mã BN</Th>
-              <Th>Họ tên</Th>
-              <Th>Ngày sinh</Th>
-              <Th>Giới tính</Th>
-              <Th>SĐT</Th>
-              <Th>Loại</Th>
-              <Th>Khoa</Th>
+      {isLoading ? (
+        <Flex justify="center" align="center" py={10}>
+          <Spinner size="xl" color="blue.500" />
+        </Flex>
+      ) : (
+        <Box bg="white" borderRadius="lg" boxShadow="md" overflow="hidden" border="1px solid" borderColor="gray.200">
+          <Table variant="simple">
+            <Thead bg="gray.50">
+              <Tr>
+                <Th>Mã BN</Th>
+                <Th>Họ tên</Th>
+                <Th>Ngày sinh</Th>
+                <Th>Giới tính</Th>
+                <Th>SĐT</Th>
+                <Th>Loại</Th>
+                <Th>Khoa</Th>
               <Th>Lần khám cuối</Th>
               <Th>Trạng thái</Th>
               <Th>Thao tác</Th>
@@ -190,7 +222,7 @@ const PatientList = () => {
           <Tbody>
             {filteredPatients.length > 0 ? (
               filteredPatients.map((patient) => (
-                <Tr key={patient.id} _hover={{ bg: "gray.50" }}>
+                <Tr key={patient._id} _hover={{ bg: "gray.50" }}>
                   <Td fontWeight="bold" color="teal.600">
                     {patient.id}
                   </Td>
@@ -229,7 +261,8 @@ const PatientList = () => {
             )}
           </Tbody>
         </Table>
-      </Box>
+        </Box>
+      )}
     </Container>
   );
 };

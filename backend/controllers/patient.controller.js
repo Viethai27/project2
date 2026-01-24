@@ -33,7 +33,9 @@ export const searchPatient = async (req, res) => {
 // @access  Private
 export const createPatient = async (req, res) => {
   try {
-    const patient = await patientService.createPatient(req.body, req.user.id);
+    // Pass userId only if user is logged in, otherwise let service create new user
+    const userId = req.user?.id || null;
+    const patient = await patientService.createPatient(req.body, userId);
 
     res.status(201).json({
       success: true,
@@ -41,6 +43,7 @@ export const createPatient = async (req, res) => {
       patient,
     });
   } catch (error) {
+    console.error('❌ Error creating patient:', error);
     res.status(400).json({
       success: false,
       message: error.message,

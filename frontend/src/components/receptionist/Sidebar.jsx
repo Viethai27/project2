@@ -1,5 +1,5 @@
 import { Box, VStack, Text, Icon, Flex, Divider } from "@chakra-ui/react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   MdDashboard,
   MdPersonAdd,
@@ -13,6 +13,14 @@ import {
 } from "react-icons/md";
 
 const Sidebar = () => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
   const menuItems = [
     {
       name: "Dashboard",
@@ -119,6 +127,7 @@ const Sidebar = () => {
           py={3}
           cursor="pointer"
           color="red.600"
+          onClick={handleLogout}
           _hover={{
             bg: "red.50",
           }}

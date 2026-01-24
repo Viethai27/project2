@@ -8,9 +8,14 @@ import {
   getAllAppointments,
   updateAppointmentStatus,
 } from '../controllers/appointment.controller.js';
+import { getDepartments, getDoctorsByDepartment } from '../controllers/appointmentController.js';
 import { protect } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
+
+// Meta endpoints (protected)
+router.get('/meta/departments', protect, getDepartments);
+router.get('/meta/doctors', protect, getDoctorsByDepartment);
 
 // Public route for customer appointment booking
 router.post('/', createAppointment);

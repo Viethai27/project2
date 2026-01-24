@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Container,
@@ -17,62 +17,225 @@ import {
   Divider,
   Badge,
   useToast,
+  Spinner,
 } from "@chakra-ui/react";
 import { MdSearch, MdCalendarToday, MdCheckCircle } from "react-icons/md";
+import { useLocation } from "react-router-dom";
+import { patientAPI, appointmentAPI } from "../../services/api";
 
 const AppointmentRegistration = () => {
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedDoctor, setSelectedDoctor] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
+  const [reason, setReason] = useState("");
   const [appointmentResult, setAppointmentResult] = useState(null);
+  const [departments, setDepartments] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingDepts, setIsLoadingDepts] = useState(false);
+  const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const toast = useToast();
 
-  const handleSearch = () => {
-    // Simulate patient search
-    if (searchTerm) {
+  // Check if patient data was passed from PatientRegistration
+  useEffect(() => {
+    if (location.state?.patient) {
+      const patient = location.state.patient;
       setSelectedPatient({
-        id: "BN001",
-        name: "Nguyễn Văn A",
-        dob: "15/05/1980",
-        gender: "Nam",
-        phone: "0912345678",
-        insurance: "DN4500123456789",
+        _id: patient._id,
+        id: patient.patientCode || patient.patientId || patient._id.slice(-6).toUpperCase(),
+        name: patient.fullName || patient.full_name || "N/A",
+        dob: patient.dateOfBirth || patient.dob ? new Date(patient.dateOfBirth || patient.dob).toLocaleDateString("vi-VN") : "N/A",
+        gender: patient.gender === 'female' ? 'Nữ' : patient.gender === 'male' ? 'Nam' : 'Khác',
+        phone: patient.phone || patient.user?.phone || "N/A",
+        insurance: patient.insurance_number || "Chưa có BHYT",
       });
+      setAppointmentResult(null);
+    }
+  }, [location.state]);
+
+  // Load departments on mount
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        setIsLoadingDepts(true);
+        const response = await appointmentAPI.getDepartments();
+        console.log("📋 Departments response:", response.data);
+        // response.data is already the JSON from backend: { success: true, data: [...] }
+        if (response.data?.success && response.data?.data) {
+          setDepartments(response.data.data);
+          console.log("✅ Loaded", response.data.data.length, "departments");
+        } else {
+          console.log("⚠️ Unexpected response format:", response.data);
+          setDepartments([]);
+        }
+      } catch (error) {
+        console.error("❌ Error fetching departments:", error);
+        toast({
+          title: "Lỗi",
+          description: error.response?.data?.message || "Không thể tải danh sách khoa",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoadingDepts(false);
+      }
+    };
+
+    fetchDepartments();
+  }, [toast]);
+
+  // Load doctors when department changes
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      if (!selectedDepartment) {
+        setDoctors([]);
+        return;
+      }
+
+      try {
+        setIsLoadingDoctors(true);
+        const response = await appointmentAPI.getDoctors(selectedDepartment);
+        console.log("👨‍⚕️ Doctors response:", response.data);
+        if (response.data?.success && response.data?.data) {
+          setDoctors(response.data.data);
+          console.log("✅ Loaded", response.data.data.length, "doctors");
+        } else {
+          console.log("⚠️ Unexpected doctors response:", response.data);
+          setDoctors([]);
+        }
+      } catch (error) {
+        console.error("❌ Error fetching doctors:", error);
+        toast({
+          title: "Lỗi",
+          description: error.response?.data?.message || "Không thể tải danh sách bác sĩ",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoadingDoctors(false);
+      }
+    };
+
+    fetchDoctors();
+  }, [selectedDepartment, toast]);
+
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) {
+      toast({
+        title: "Thông báo",
+        description: "Vui lòng nhập thông tin tìm kiếm",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      const response = await patientAPI.search(searchTerm.trim());
+      console.log("Search result:", response.data);
+      
+      if (response.data.success && response.data.patient) {
+        const patient = response.data.patient;
+        setSelectedPatient({
+          _id: patient._id,
+          id: patient.patientCode || patient._id.slice(-6).toUpperCase(),
+          name: patient.full_name || patient.user?.username || "N/A",
+          dob: patient.dob ? new Date(patient.dob).toLocaleDateString("vi-VN") : "N/A",
+          gender: patient.gender === 'female' ? 'Nữ' : patient.gender === 'male' ? 'Nam' : 'Khác',
+          phone: patient.user?.phone || patient.phone || "N/A",
+          insurance: patient.insurance_number || "Chưa có BHYT",
+        });
+        setAppointmentResult(null);
+      } else {
+        toast({
+          title: "Không tìm thấy",
+          description: "Không tìm thấy bệnh nhân với thông tin này",
+          status: "warning",
+          duration: 3000,
+          isClosable: true,
+        });
+        setSelectedPatient(null);
+      }
+    } catch (error) {
+      console.error("Error searching patient:", error);
+      toast({
+        title: "Lỗi",
+        description: error.response?.data?.message || "Không tìm thấy bệnh nhân",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      setSelectedPatient(null);
+    } finally {
+      setIsSearching(false);
     }
   };
 
-  const handleRegister = () => {
-    setAppointmentResult({
-      number: "A012",
-      time: "10:30",
-      doctor: "BS. Nguyễn Văn B",
-      room: "Phòng 101",
-    });
+  const handleRegister = async () => {
+    if (!selectedPatient || !selectedDepartment || !selectedDoctor || !selectedDate || !selectedTime) {
+      toast({
+        title: "Thiếu thông tin",
+        description: "Vui lòng điền đầy đủ thông tin đăng ký",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
 
-    toast({
-      title: "Đăng ký thành công",
-      description: "Đã tạo phiếu khám cho bệnh nhân",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
+    try {
+      setIsRegistering(true);
+      const appointmentData = {
+        patient: selectedPatient._id,
+        doctor: selectedDoctor,
+        department: selectedDepartment,
+        appointment_date: selectedDate,
+        time_slot: selectedTime,
+        reason: reason || "Khám bệnh",
+        status: "pending",
+      };
 
-  // Fake data for departments and doctors
-  const departments = [
-    { id: 1, name: "Khoa Nội tổng quát" },
-    { id: 2, name: "Khoa Ngoại" },
-    { id: 3, name: "Khoa Sản" },
-    { id: 4, name: "Khoa Nhi" },
-    { id: 5, name: "Khoa Tai Mũi Họng" },
-  ];
+      const response = await appointmentAPI.create(appointmentData);
+      console.log("Appointment created:", response.data);
 
-  const doctors = {
-    "Khoa Nội tổng quát": ["BS. Nguyễn Văn A", "BS. Trần Thị B", "BS. Lê Văn C"],
-    "Khoa Ngoại": ["BS. Phạm Văn D", "BS. Hoàng Thị E"],
-    "Khoa Sản": ["BS. Võ Thị F", "BS. Đặng Văn G"],
-    "Khoa Nhi": ["BS. Nguyễn Văn H", "BS. Trần Thị I"],
-    "Khoa Tai Mũi Họng": ["BS. Lê Văn K", "BS. Phạm Thị L"],
+      if (response.data.success) {
+        setAppointmentResult({
+          number: response.data.appointment?.appointmentNumber || "N/A",
+          time: selectedTime,
+          doctor: doctors.find(d => d._id === selectedDoctor)?.full_name || "N/A",
+          room: "Phòng khám",
+          date: new Date(selectedDate).toLocaleDateString("vi-VN"),
+        });
+
+        toast({
+          title: "Đăng ký thành công",
+          description: "Đã tạo phiếu khám cho bệnh nhân",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error creating appointment:", error);
+      toast({
+        title: "Lỗi",
+        description: error.response?.data?.message || "Không thể đăng ký khám",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   return (
@@ -94,14 +257,17 @@ const AppointmentRegistration = () => {
               placeholder="Nhập mã BN / CCCD / SĐT..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               size="lg"
             />
             <Button
               colorScheme="teal"
-              leftIcon={<MdSearch />}
+              leftIcon={isSearching ? null : <MdSearch />}
               size="lg"
               onClick={handleSearch}
               minW="150px"
+              isLoading={isSearching}
+              loadingText="Đang tìm..."
             >
               Tìm kiếm
             </Button>
@@ -182,10 +348,14 @@ const AppointmentRegistration = () => {
                 <Select
                   placeholder="-- Chọn khoa --"
                   value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedDepartment(e.target.value);
+                    setSelectedDoctor("");
+                  }}
+                  isDisabled={isLoadingDepts}
                 >
                   {departments.map((dept) => (
-                    <option key={dept.id} value={dept.name}>
+                    <option key={dept._id} value={dept._id}>
                       {dept.name}
                     </option>
                   ))}
@@ -193,56 +363,73 @@ const AppointmentRegistration = () => {
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel fontWeight="semibold">Bác sĩ</FormLabel>
-                <Select placeholder="-- Chọn bác sĩ --" isDisabled={!selectedDepartment}>
-                  {selectedDepartment &&
-                    doctors[selectedDepartment]?.map((doctor, idx) => (
-                      <option key={idx} value={doctor}>
-                        {doctor}
-                      </option>
-                    ))}
+<FormLabel fontWeight="semibold">Bác sĩ</FormLabel>
+                <Select 
+                  placeholder={isLoadingDoctors ? "Đang tải..." : "-- Chọn bác sĩ --"} 
+                  value={selectedDoctor}
+                  onChange={(e) => setSelectedDoctor(e.target.value)}
+                  isDisabled={!selectedDepartment || isLoadingDoctors}
+                >
+                  {doctors.map((doctor) => (
+                    <option key={doctor._id} value={doctor._id}>
+                      {doctor.full_name || "Bác sĩ"}
+                    </option>
+                  ))}
                 </Select>
               </FormControl>
 
               <FormControl isRequired>
                 <FormLabel fontWeight="semibold">Ngày khám</FormLabel>
-                <Input type="date" />
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                />
               </FormControl>
 
               <FormControl isRequired>
                 <FormLabel fontWeight="semibold">Giờ khám</FormLabel>
-                <Select placeholder="-- Chọn giờ --">
-                  <option>08:00 - 09:00</option>
-                  <option>09:00 - 10:00</option>
-                  <option>10:00 - 11:00</option>
-                  <option>13:00 - 14:00</option>
-                  <option>14:00 - 15:00</option>
-                  <option>15:00 - 16:00</option>
+                <Select
+                  placeholder="-- Chọn giờ --"
+                  value={selectedTime}
+                  onChange={(e) => setSelectedTime(e.target.value)}
+                >
+                  <option value="08:00">08:00 - 08:30</option>
+                  <option value="08:30">08:30 - 09:00</option>
+                  <option value="09:00">09:00 - 09:30</option>
+                  <option value="09:30">09:30 - 10:00</option>
+                  <option value="10:00">10:00 - 10:30</option>
+                  <option value="10:30">10:30 - 11:00</option>
+                  <option value="13:00">13:00 - 13:30</option>
+                  <option value="13:30">13:30 - 14:00</option>
+                  <option value="14:00">14:00 - 14:30</option>
+                  <option value="14:30">14:30 - 15:00</option>
+                  <option value="15:00">15:00 - 15:30</option>
+                  <option value="15:30">15:30 - 16:00</option>
                 </Select>
               </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel fontWeight="semibold">Hình thức khám</FormLabel>
-                <Select placeholder="-- Chọn hình thức --">
-                  <option>Khám thường</option>
-                  <option>Khám BHYT</option>
-                  <option>Khám VIP</option>
-                  <option>Khám theo yêu cầu</option>
-                </Select>
-              </FormControl>
-
-              <FormControl>
+              <FormControl gridColumn={{ base: "1", md: "1 / -1" }}>
                 <FormLabel fontWeight="semibold">Lý do khám</FormLabel>
-                <Input placeholder="Nhập lý do khám (tùy chọn)" />
+                <Input
+                  placeholder="Nhập lý do khám bệnh..."
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                />
               </FormControl>
             </SimpleGrid>
 
-            <Flex justify="flex-end" gap={3} pt={4}>
-              <Button variant="outline" size="lg">
-                Hủy
-              </Button>
-              <Button colorScheme="teal" size="lg" onClick={handleRegister}>
-                Xác nhận đăng ký
+            <Flex justify="flex-end" mt={4}>
+              <Button
+                colorScheme="teal"
+                size="lg"
+                px={8}
+                onClick={handleRegister}
+                isLoading={isRegistering}
+                loadingText="Đang đăng ký..."
+              >
+                Đăng ký khám
               </Button>
             </Flex>
           </VStack>
@@ -268,10 +455,10 @@ const AppointmentRegistration = () => {
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} maxW="600px" mx="auto" mb={6}>
             <Box bg="white" p={4} borderRadius="md">
               <Text fontSize="sm" color="gray.600" mb={1}>
-                Số thứ tự
+                Ngày khám
               </Text>
-              <Text fontSize="3xl" fontWeight="bold" color="teal.600">
-                {appointmentResult.number}
+              <Text fontSize="lg" fontWeight="bold" color="gray.700">
+                {appointmentResult.date}
               </Text>
             </Box>
 
@@ -279,7 +466,7 @@ const AppointmentRegistration = () => {
               <Text fontSize="sm" color="gray.600" mb={1}>
                 Giờ dự kiến
               </Text>
-              <Text fontSize="3xl" fontWeight="bold" color="teal.600">
+              <Text fontSize="2xl" fontWeight="bold" color="teal.600">
                 {appointmentResult.time}
               </Text>
             </Box>
@@ -314,6 +501,11 @@ const AppointmentRegistration = () => {
               onClick={() => {
                 setAppointmentResult(null);
                 setSelectedPatient(null);
+                setSelectedDepartment("");
+                setSelectedDoctor("");
+                setSelectedDate("");
+                setSelectedTime("");
+                setReason("");
                 setSearchTerm("");
               }}
             >

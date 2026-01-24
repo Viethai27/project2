@@ -4,26 +4,61 @@ import User from '../models/1. AUTH/User.model.js';
 class PatientService {
   // Search patient by phone, ID, or email
   async searchPatient(searchTerm) {
-    const patient = await Patient.findOne({
+    console.log('🔍 Searching for:', searchTerm);
+    
+    // Try to find patient by their direct fields first
+    let patient = await Patient.findOne({
       $or: [
         { phone: searchTerm },
         { id_card: searchTerm },
         { email: searchTerm },
       ],
-    }).populate('user', 'username email');
+    }).populate('user', 'username email phone');
+
+    console.log('🏥 Found patient (direct):', patient ? patient.full_name : 'Not found');
+
+    // If not found, try to search by user's phone or email
+    if (!patient) {
+      const user = await User.findOne({
+        $or: [
+          { phone: searchTerm },
+          { email: searchTerm },
+        ],
+      });
+
+      console.log('👤 Found user:', user ? user.username : 'Not found');
+
+      if (user) {
+        patient = await Patient.findOne({ user: user._id })
+          .populate('user', 'username email phone');
+        
+        console.log('🏥 Found patient (via user):', patient ? patient.full_name : 'Not found');
+      }
+    }
 
     if (!patient) {
       throw new Error('Không tìm thấy bệnh nhân');
     }
 
-    return patient;
+    // Convert to plain object and ensure all fields are accessible
+    const patientObj = patient.toObject();
+    
+    // Merge user data into patient object for easier frontend access
+    if (patientObj.user) {
+      patientObj.phone = patientObj.phone || patientObj.user.phone;
+      patientObj.email = patientObj.email || patientObj.user.email;
+    }
+
+    return patientObj;
   }
 
   // Create new patient
-  async createPatient(patientData, userId) {
+  async createPatient(patientData, userId = null) {
     const { full_name, dob, gender, phone, id_card, address, email } = patientData;
 
-    // Check if patient already exists
+    console.log('📝 Creating patient with data:', { full_name, phone, email, id_card });
+
+    // Check if patient already exists by phone or id_card
     if (phone) {
       const existingPatient = await Patient.findOne({ phone });
       if (existingPatient) {
@@ -38,9 +73,37 @@ class PatientService {
       }
     }
 
+    // If no userId provided, create a new user
+    let userIdToUse = userId;
+    if (!userIdToUse) {
+      // Check if user with this email/phone exists
+      let user = await User.findOne({
+        $or: [
+          { email: email },
+          { phone: phone }
+        ].filter(Boolean)
+      });
+
+      if (!user) {
+        // Create new user
+        const bcrypt = await import('bcryptjs');
+        const hashedPassword = await bcrypt.default.hash('Patient123', 10);
+        
+        user = await User.create({
+          username: full_name,
+          email: email || `patient_${Date.now()}@temp.com`,
+          phone: phone,
+          password_hash: hashedPassword,
+          role: 'patient',
+        });
+        console.log('✅ Created new user:', user.username);
+      }
+      userIdToUse = user._id;
+    }
+
     // Create patient
     const patient = await Patient.create({
-      user: userId,
+      user: userIdToUse,
       full_name,
       dob,
       gender,
@@ -49,6 +112,8 @@ class PatientService {
       address,
       email,
     });
+
+    console.log('✅ Created patient:', patient.full_name);
 
     await patient.populate('user', 'username email');
 
@@ -84,7 +149,7 @@ class PatientService {
   // Get all patients
   async getAllPatients(filters = {}) {
     const patients = await Patient.find(filters)
-      .populate('user', 'username email')
+      .populate('user', 'username email phone')
       .sort({ createdAt: -1 });
 
     return patients;

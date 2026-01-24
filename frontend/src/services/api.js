@@ -49,7 +49,7 @@ export const authAPI = {
 export const patientAPI = {
   getAll: (params) => api.get('/patients', { params }),
   getById: (id) => api.get(`/patients/${id}`),
-  search: (query) => api.get('/patients/search', { params: { query } }),
+  search: (query) => api.get('/patients/search', { params: { q: query } }),
   create: (data) => api.post('/patients', data),
   update: (id, data) => api.put(`/patients/${id}`, data),
   delete: (id) => api.delete(`/patients/${id}`)
@@ -94,6 +94,17 @@ export const doctorAPI = {
   getUpcomingAppointments: () => api.get('/doctor/dashboard/appointments'),
   getPatients: () => api.get('/doctor/patients'),
   getAppointmentsByDate: (date) => api.get(`/doctor/appointments/date/${date}`)
+};
+
+// Receptionist API
+export const receptionistAPI = {
+  getPendingAppointments: () => api.get('/receptionist/pending-appointments'),
+  getAppointmentDetails: (id) => api.get(`/receptionist/appointments/${id}`),
+  getAvailableSlots: (doctorId, date, session) => api.get('/receptionist/available-slots', { 
+    params: { doctorId, date, session } 
+  }),
+  confirmAppointment: (id, data) => api.put(`/receptionist/appointments/${id}/confirm`, data),
+  cancelAppointment: (id, reason) => api.put(`/receptionist/appointments/${id}/cancel`, { reason })
 };
 
 export default api;

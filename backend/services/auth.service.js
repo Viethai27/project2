@@ -71,22 +71,25 @@ class AuthService {
       throw new Error('Tài khoản đã bị khóa hoặc vô hiệu hóa');
     }
 
-    // Check user role (doctor, patient, admin, etc.)
-    let role = 'patient'; // Default role
+    // Check user role - prioritize role field in User model
+    let role = user.role || 'patient'; // Use role from User model if exists
     
-    // Check if user is a doctor (priority check)
-    const Doctor = (await import('../models/1. AUTH/Doctor.model.js')).default;
-    const doctor = await Doctor.findOne({ user: user._id });
-    
-    if (doctor) {
-      role = 'doctor';
-    } else {
-      // Only check patient if not a doctor
-      const Patient = (await import('../models/3. PATIENT_INSURANCE/Patient.model.js')).default;
-      const patient = await Patient.findOne({ user: user._id });
+    // If no role is set in User model, check related collections
+    if (!user.role) {
+      // Check if user is a doctor (priority check)
+      const Doctor = (await import('../models/1. AUTH/Doctor.model.js')).default;
+      const doctor = await Doctor.findOne({ user: user._id });
       
-      if (patient) {
-        role = 'patient';
+      if (doctor) {
+        role = 'doctor';
+      } else {
+        // Only check patient if not a doctor
+        const Patient = (await import('../models/3. PATIENT_INSURANCE/Patient.model.js')).default;
+        const patient = await Patient.findOne({ user: user._id });
+        
+        if (patient) {
+          role = 'patient';
+        }
       }
     }
 

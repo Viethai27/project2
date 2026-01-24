@@ -51,7 +51,8 @@ const appointmentSchema = new mongoose.Schema({
         required: false,
     },
     department: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Department",
         required: false,
     },
     doctor_name: {
@@ -66,6 +67,32 @@ const appointmentSchema = new mongoose.Schema({
         type: String,
         enum: ["booked", "checked_in", "cancelled", "no_show", "pending", "confirmed"],
         default: "pending",
+    },
+    notes: {
+        type: String,
+        required: false,
+    },
+    cancel_reason: {
+        type: String,
+        required: false,
+    },
+    confirmed_at: {
+        type: Date,
+        required: false,
+    },
+    confirmed_by: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: false,
+    },
+    cancelled_at: {
+        type: Date,
+        required: false,
+    },
+    cancelled_by: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: false,
     },
     booked_at: {
         type: Date,

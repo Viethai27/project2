@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import User from './models/1. AUTH/User.model.js';
 import Doctor from './models/1. AUTH/Doctor.model.js';
+import Employer from './models/1. AUTH/Employer.model.js';
+import Department from './models/2. CATALOGUE_FACILYTY/Department.model.js';
 import { connectDB } from './config/db.js';
 
 dotenv.config();
@@ -76,6 +78,14 @@ async function seedDoctors() {
     
     console.log('🌱 Bắt đầu seed dữ liệu bác sĩ khoa sản...\n');
 
+    // Find Sản khoa department
+    const sanKhoa = await Department.findOne({ name: 'Sản khoa' });
+    if (!sanKhoa) {
+      console.error('❌ Không tìm thấy khoa Sản. Vui lòng chạy seedDepartments.js trước!');
+      process.exit(1);
+    }
+    console.log(`📋 Found department: ${sanKhoa.name} (${sanKhoa._id})\n`);
+
     for (const doctorData of doctors) {
       // Check if user already exists
       let user = await User.findOne({ email: doctorData.email });
@@ -108,10 +118,27 @@ async function seedDoctors() {
         console.log(`✅ Đã tạo User: ${doctorData.email}`);
       }
 
+      // Check if Employer record exists
+      let employer = await Employer.findOne({ user: user._id });
+      
+      if (!employer) {
+        // Create Employer record linking user to department
+        employer = await Employer.create({
+          user: user._id,
+          department: sanKhoa._id,
+          position: 'Bác sĩ'
+        });
+        console.log(`✅ Đã tạo Employer record cho ${user.email}`);
+      } else {
+        console.log(`⚠️  Employer record đã tồn tại`);
+      }
+
       // Create Doctor profile
       const doctor = await Doctor.create({
         user: user._id,
+        employer: employer._id,
         full_name: doctorData.full_name,
+        specialty: doctorData.specialty,
         specialization: doctorData.specialization,
         gender: doctorData.gender,
         phone: doctorData.phone,
@@ -124,6 +151,8 @@ async function seedDoctors() {
 
       console.log(`✅ Đã tạo Doctor profile: ${doctorData.full_name}`);
       console.log(`   📧 Email: ${doctorData.email}`);
+      console.log(`   🏥 Department: ${sanKhoa.name} (via Employer)`);
+      console.log(`   💼 Employer ID: ${employer._id}`);
       console.log(`   🔑 Password: ${doctorData.password}\n`);
     }
 
