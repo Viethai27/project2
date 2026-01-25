@@ -18,6 +18,7 @@ import ClinicalTest from './pages/doctor/ClinicalTest.jsx'
 import Prescription from './pages/doctor/Prescription.jsx'
 import Inpatient from './pages/doctor/Inpatient.jsx'
 import Profile from './pages/doctor/Profile.jsx'
+// ...existing code...
 import ReceptionistLayout from './layouts/receptionist/ReceptionistLayout.jsx'
 import ReceptionistDashboard from './pages/receptionist/Dashboard.jsx'
 import PatientRegistration from './pages/receptionist/PatientRegistration.jsx'
@@ -64,6 +65,7 @@ function App() {
                   <Route path="prescriptions" element={<Prescription />} />
                   <Route path="inpatient" element={<Inpatient />} />
                   <Route path="profile" element={<Profile />} />
+// ...existing code...
                 </Route>
 
                 {/* Receptionist Routes */}

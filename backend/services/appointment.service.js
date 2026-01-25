@@ -1,6 +1,6 @@
 import Appointment from '../models/4. APPOINTMENT_VISIT/Appointment.model.js';
 import Patient from '../models/3. PATIENT_INSURANCE/Patient.model.js';
-import Doctor from '../models/1. AUTH/Doctor.model.js';
+import Doctor from '../models/1. AUTH_EMPLOYEE/Doctor.model.js';
 import DoctorTimeSlot from '../models/4. APPOINTMENT_VISIT/DoctorTimeSlot.model.js';
 import Department from '../models/2. CATALOGUE_FACILYTY/Department.model.js';
 import mongoose from 'mongoose';
@@ -78,7 +78,7 @@ class AppointmentService {
         time_slot: finalTimeSlot,
         department: finalDepartmentId,
         reason: reason || 'Khám bệnh',
-        status: status,
+        status: 'confirmed', // Receptionist bookings are auto-confirmed
       });
 
       await appointment.populate(['patient', 'doctor']);

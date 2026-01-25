@@ -1,15 +1,16 @@
-import User from '../models/1. AUTH/User.model.js';
+import User from '../models/1. AUTH_EMPLOYEE/User.model.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 class AuthService {
   // Generate JWT token
-  generateToken(user) {
+  generateToken(user, role = null) {
     return jwt.sign(
       {
         id: user._id,
         email: user.email,
         username: user.username,
+        role: role || user.role || 'patient',
       },
       process.env.JWT_SECRET || 'pamec_secret_key_2024',
       { expiresIn: '7d' }
@@ -39,7 +40,7 @@ class AuthService {
       status: 'active',
     });
 
-    const token = this.generateToken(user);
+    const token = this.generateToken(user, user.role);
 
     return {
       token,
@@ -48,6 +49,7 @@ class AuthService {
         username: user.username,
         email: user.email,
         status: user.status,
+        role: user.role,
       },
     };
   }
@@ -77,7 +79,7 @@ class AuthService {
     // If no role is set in User model, check related collections
     if (!user.role) {
       // Check if user is a doctor (priority check)
-      const Doctor = (await import('../models/1. AUTH/Doctor.model.js')).default;
+      const Doctor = (await import('../models/1. AUTH_EMPLOYEE/Doctor.model.js')).default;
       const doctor = await Doctor.findOne({ user: user._id });
       
       if (doctor) {
@@ -93,7 +95,7 @@ class AuthService {
       }
     }
 
-    const token = this.generateToken(user);
+    const token = this.generateToken(user, role);
 
     return {
       token,
@@ -115,7 +117,7 @@ class AuthService {
     }
 
     // Check if user is a doctor and get doctor details
-    const Doctor = (await import('../models/1. AUTH/Doctor.model.js')).default;
+    const Doctor = (await import('../models/1. AUTH_EMPLOYEE/Doctor.model.js')).default;
     const doctor = await Doctor.findOne({ user: user._id });
     
     if (doctor) {

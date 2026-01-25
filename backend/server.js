@@ -11,6 +11,7 @@ import paymentRoutes from './routes/payment.routes.js';
 import departmentRoutes from './routes/department.routes.js';
 import doctorRoutes from './routes/doctor.routes.js';
 import receptionistRoutes from './routes/receptionist.routes.js';
+// ...existing code...
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api', departmentRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/receptionist', receptionistRoutes);
+// ...existing code...
 
 // Root route
 app.get('/', (req, res) => {

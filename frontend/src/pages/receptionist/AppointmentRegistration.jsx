@@ -21,7 +21,7 @@ import {
 } from "@chakra-ui/react";
 import { MdSearch, MdCalendarToday, MdCheckCircle } from "react-icons/md";
 import { useLocation } from "react-router-dom";
-import { patientAPI, appointmentAPI } from "../../services/api";
+import { patientAPI, appointmentAPI, receptionistAPI } from "../../services/api";
 
 const AppointmentRegistration = () => {
   const location = useLocation();
@@ -35,9 +35,11 @@ const AppointmentRegistration = () => {
   const [appointmentResult, setAppointmentResult] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [doctors, setDoctors] = useState([]);
+  const [availableSlots, setAvailableSlots] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingDepts, setIsLoadingDepts] = useState(false);
   const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const toast = useToast();
 
@@ -125,6 +127,42 @@ const AppointmentRegistration = () => {
 
     fetchDoctors();
   }, [selectedDepartment, toast]);
+
+  // Load available time slots when doctor and date are selected
+  useEffect(() => {
+    const fetchAvailableSlots = async () => {
+      if (!selectedDoctor || !selectedDate) {
+        setAvailableSlots([]);
+        return;
+      }
+
+      try {
+        setIsLoadingSlots(true);
+        // Don't pass session to get all slots for the day
+        const response = await receptionistAPI.getAvailableSlots(selectedDoctor, selectedDate, null);
+        console.log("⏰ Available slots response:", response.data);
+        if (response.data?.success && response.data?.data) {
+          setAvailableSlots(response.data.data);
+          console.log("✅ Loaded", response.data.data.length, "available slots");
+        } else {
+          setAvailableSlots([]);
+        }
+      } catch (error) {
+        console.error("❌ Error fetching available slots:", error);
+        toast({
+          title: "Lỗi",
+          description: "Không thể tải danh sách giờ trống",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoadingSlots(false);
+      }
+    };
+
+    fetchAvailableSlots();
+  }, [selectedDoctor, selectedDate, toast]);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
@@ -394,19 +432,21 @@ const AppointmentRegistration = () => {
                   placeholder="-- Chọn giờ --"
                   value={selectedTime}
                   onChange={(e) => setSelectedTime(e.target.value)}
+                  isDisabled={!selectedDoctor || !selectedDate || isLoadingSlots}
                 >
-                  <option value="08:00">08:00 - 08:30</option>
-                  <option value="08:30">08:30 - 09:00</option>
-                  <option value="09:00">09:00 - 09:30</option>
-                  <option value="09:30">09:30 - 10:00</option>
-                  <option value="10:00">10:00 - 10:30</option>
-                  <option value="10:30">10:30 - 11:00</option>
-                  <option value="13:00">13:00 - 13:30</option>
-                  <option value="13:30">13:30 - 14:00</option>
-                  <option value="14:00">14:00 - 14:30</option>
-                  <option value="14:30">14:30 - 15:00</option>
-                  <option value="15:00">15:00 - 15:30</option>
-                  <option value="15:30">15:30 - 16:00</option>
+                  {isLoadingSlots ? (
+                    <option disabled>Đang tải...</option>
+                  ) : availableSlots.length > 0 ? (
+                    availableSlots.map((slot) => (
+                      <option key={slot.value} value={slot.value}>
+                        {slot.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option disabled>
+                      {selectedDoctor && selectedDate ? "Không còn giờ trống" : "Chọn bác sĩ và ngày khám trước"}
+                    </option>
+                  )}
                 </Select>
               </FormControl>
 

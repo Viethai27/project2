@@ -13,7 +13,7 @@ const patientSchema = new mongoose.Schema({
     },
     dob: {
         type: Date,
-        required: true,
+        required: false, // Changed: Emergency patients may not have DOB initially
     },
     gender: {
         type: String,
@@ -23,8 +23,22 @@ const patientSchema = new mongoose.Schema({
     id_card: {
         type: String,
         required: false,
-        unique: true,
         sparse: true, // Allows multiple null values
+        // Removed unique:true to allow multiple "N/A" values
+        validate: {
+            // Only enforce uniqueness for real ID cards (not N/A)
+            validator: async function(value) {
+                if (!value || value === 'N/A' || value === 'Chưa có') {
+                    return true; // Allow N/A without uniqueness check
+                }
+                const count = await mongoose.models.Patient.countDocuments({
+                    id_card: value,
+                    _id: { $ne: this._id }
+                });
+                return count === 0;
+            },
+            message: 'CCCD đã được đăng ký'
+        }
     },
     phone: {
         type: String,

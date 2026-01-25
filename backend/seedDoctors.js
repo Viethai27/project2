@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
-import User from './models/1. AUTH/User.model.js';
-import Doctor from './models/1. AUTH/Doctor.model.js';
-import Employer from './models/1. AUTH/Employer.model.js';
+import User from './models/1. AUTH_EMPLOYEE/User.model.js';
+import Doctor from './models/1. AUTH_EMPLOYEE/Doctor.model.js';
+import Employer from './models/1. AUTH_EMPLOYEE/Employer.model.js';
 import Department from './models/2. CATALOGUE_FACILYTY/Department.model.js';
 import { connectDB } from './config/db.js';
 

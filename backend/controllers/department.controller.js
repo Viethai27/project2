@@ -1,5 +1,5 @@
 import Department from '../models/2. CATALOGUE_FACILYTY/Department.model.js';
-import Doctor from '../models/1. AUTH/Doctor.model.js';
+import Doctor from '../models/1. AUTH_EMPLOYEE/Doctor.model.js';
 
 /**
  * Get all departments

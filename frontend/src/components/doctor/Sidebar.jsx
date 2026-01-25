@@ -11,6 +11,7 @@ import {
   MdLocalHospital,
   MdPerson,
   MdLogout,
+  MdPregnantWoman,
 } from "react-icons/md";
 import { authAPI } from "../../services/api";
 
@@ -68,6 +69,7 @@ const Sidebar = () => {
       path: "/doctor/medical-records",
       icon: MdDescription,
     },
+    // ...existing code...
     {
       name: "Cận lâm sàng",
       path: "/doctor/clinical-tests",

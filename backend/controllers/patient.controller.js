@@ -33,9 +33,15 @@ export const searchPatient = async (req, res) => {
 // @access  Private
 export const createPatient = async (req, res) => {
   try {
-    // Pass userId only if user is logged in, otherwise let service create new user
-    const userId = req.user?.id || null;
-    const patient = await patientService.createPatient(req.body, userId);
+    console.log('🔵 [CREATE PATIENT] Received request:', {
+      body: req.body,
+      userId: req.user?.id,
+      userEmail: req.user?.email
+    });
+
+    // Always create a new user for the patient (don't use receptionist's userId)
+    // The service will create a new User account for this patient
+    const patient = await patientService.createPatient(req.body, null);
 
     res.status(201).json({
       success: true,
@@ -43,7 +49,8 @@ export const createPatient = async (req, res) => {
       patient,
     });
   } catch (error) {
-    console.error('❌ Error creating patient:', error);
+    console.error('❌ [CREATE PATIENT] Error:', error.message);
+    console.error('❌ [CREATE PATIENT] Stack:', error.stack);
     res.status(400).json({
       success: false,
       message: error.message,
@@ -95,7 +102,9 @@ export const updatePatient = async (req, res) => {
 // @access  Private
 export const getAllPatients = async (req, res) => {
   try {
+    console.log('🔵 [GET ALL PATIENTS] Fetching patients...');
     const patients = await patientService.getAllPatients(req.query);
+    console.log(`✅ [GET ALL PATIENTS] Found ${patients.length} patients`);
     
     res.json({
       success: true,
@@ -103,6 +112,8 @@ export const getAllPatients = async (req, res) => {
       patients,
     });
   } catch (error) {
+    console.error('❌ [GET ALL PATIENTS] Error:', error.message);
+    console.error('❌ [GET ALL PATIENTS] Stack:', error.stack);
     res.status(500).json({
       success: false,
       message: error.message,

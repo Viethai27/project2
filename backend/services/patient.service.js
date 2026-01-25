@@ -1,5 +1,5 @@
 import Patient from '../models/3. PATIENT_INSURANCE/Patient.model.js';
-import User from '../models/1. AUTH/User.model.js';
+import User from '../models/1. AUTH_EMPLOYEE/User.model.js';
 import Appointment from '../models/4. APPOINTMENT_VISIT/Appointment.model.js';
 
 class PatientService {

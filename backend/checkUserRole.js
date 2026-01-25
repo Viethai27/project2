@@ -5,28 +5,32 @@ import Doctor from './models/1. AUTH_EMPLOYEE/Doctor.model.js';
 
 dotenv.config();
 
-async function checkDoctor() {
+async function checkUserRole() {
   try {
     await connectDB();
     
     const email = 'mai.hoang@pamec.com';
-    console.log(`\nChecking doctor: ${email}\n`);
+    console.log(`\nChecking user role for: ${email}\n`);
     
     const user = await User.findOne({ email });
     console.log('User found:', {
       _id: user?._id,
       username: user?.username,
-      email: user?.email
+      email: user?.email,
+      role: user?.role,  // CHECK THIS!
+      status: user?.status
     });
     
     if (user) {
       const doctor = await Doctor.findOne({ user: user._id });
-      console.log('\nDoctor record:', doctor);
+      console.log('\nDoctor record exists:', !!doctor);
       
-      if (!doctor) {
-        console.log('\n❌ NO DOCTOR RECORD FOUND! User exists but no Doctor profile.');
-      } else {
-        console.log('\n✅ Doctor record exists!');
+      if (doctor && user.role !== 'doctor') {
+        console.log('\n⚠️ PROBLEM: User has Doctor record but role is not "doctor"!');
+        console.log('Current role:', user.role);
+        console.log('Should be: doctor');
+      } else if (doctor && user.role === 'doctor') {
+        console.log('\n✅ Role is correctly set to "doctor"');
       }
     }
     
@@ -37,4 +41,4 @@ async function checkDoctor() {
   }
 }
 
-checkDoctor();
+checkUserRole();

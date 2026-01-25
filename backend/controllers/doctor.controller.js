@@ -1,4 +1,4 @@
-import Doctor from '../models/1. AUTH/Doctor.model.js';
+import Doctor from '../models/1. AUTH_EMPLOYEE/Doctor.model.js';
 import Appointment from '../models/4. APPOINTMENT_VISIT/Appointment.model.js';
 
 // @desc    Get doctor dashboard statistics
@@ -128,13 +128,12 @@ export const getUpcomingAppointments = async (req, res) => {
       reason: apt.reason || 'Khám bệnh',
       status: apt.status,
       appointmentDate: apt.appointment_date,
-      patientId: apt.patient ? {
+      patientId: {
         userId: {
-          fullName: apt.patient?.user?.fullName || apt.patient?.user?.username || 'Chưa có thông tin'
-        }
-      } : {
-        userId: {
-          fullName: 'Chưa có thông tin'
+          fullName: apt.patient?.user?.fullName 
+            || apt.patient?.user?.username 
+            || apt.patient_name 
+            || 'Chưa có thông tin'
         }
       }
     }));
@@ -288,15 +287,15 @@ export const getAppointmentsByDate = async (req, res) => {
     const formattedAppointments = appointments.map(apt => ({
       _id: apt._id,
       timeSlot: apt.time_slot || 'N/A',
-      patientId: apt.patient ? {
+      patientId: {
         userId: {
-          fullName: apt.patient?.user?.fullName || apt.patient?.user?.username || 'Chưa có tên',
-          phone: apt.patient?.user?.phone || 'N/A'
-        }
-      } : {
-        userId: {
-          fullName: 'Chưa có tên',
-          phone: 'N/A'
+          fullName: apt.patient?.user?.fullName 
+            || apt.patient?.user?.username 
+            || apt.patient_name 
+            || 'Chưa có tên',
+          phone: apt.patient?.user?.phone 
+            || apt.patient_phone 
+            || 'N/A'
         }
       },
       reason: apt.reason || 'Khám bệnh',

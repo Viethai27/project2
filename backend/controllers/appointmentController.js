@@ -206,8 +206,8 @@ export const getDepartments = async (req, res) => {
 export const getDoctorsByDepartment = async (req, res) => {
   try {
     const { departmentId } = req.query;
-    const Doctor = (await import('../models/1. AUTH/Doctor.model.js')).default;
-    const Employer = (await import('../models/1. AUTH/Employer.model.js')).default;
+    const Doctor = (await import('../models/1. AUTH_EMPLOYEE/Doctor.model.js')).default;
+    const Employer = (await import('../models/1. AUTH_EMPLOYEE/Employer.model.js')).default;
     const Department = (await import('../models/2. CATALOGUE_FACILYTY/Department.model.js')).default;
     const mongoose = (await import('mongoose')).default;
     
