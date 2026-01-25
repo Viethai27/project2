@@ -20,7 +20,7 @@ import {
   Divider,
   useToast,
 } from "@chakra-ui/react";
-import { MdSearch, MdPersonAdd, MdSave } from "react-icons/md";
+import { MdSearch, MdPersonAdd, MdSave, MdCalendarToday, MdLocalHospital } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import patientService from "../../services/patientService";
 
@@ -249,8 +249,81 @@ const PatientRegistration = () => {
 
       // Navigate to appointment registration page with patient data
       setTimeout(() => {
-        navigate('/receptionist/appointment-registration', {
-          state: { patient: savedPatient }
+        navigate('/receptionist/appointment-registration', { 
+          state: { patient: savedPatient } 
+        });
+      }, 500);
+
+    } catch (error) {
+      toast({
+        title: "Lỗi lưu thông tin",
+        description: error.message,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAndAdmit = async () => {
+    // Validation
+    if (!formData.fullName.trim() || !formData.phone.trim()) {
+      toast({
+        title: "Vui lòng nhập đầy đủ thông tin bắt buộc",
+        description: "Họ tên và số điện thoại là bắt buộc",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      const patientData = {
+        full_name: formData.fullName,
+        dob: formData.dateOfBirth,
+        id_card: formData.idCard,
+        phone: formData.phone,
+        address: formData.address,
+        email: formData.email,
+        gender,
+      };
+
+      let savedPatient = null;
+
+      if (patientFound) {
+        // Update existing patient
+        await patientService.updatePatient(patientFound._id, patientData);
+        savedPatient = patientFound;
+        toast({
+          title: "Cập nhật thành công",
+          description: "Thông tin bệnh nhân đã được cập nhật",
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      } else {
+        // Create new patient
+        const result = await patientService.createPatient(patientData);
+        console.log('🎉 Patient created for admission:', result);
+        savedPatient = result.patient;
+        toast({
+          title: "Tạo hồ sơ thành công",
+          description: `Bệnh nhân: ${result.patient.full_name}`,
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      }
+
+      // Navigate to admission page with patient data
+      setTimeout(() => {
+        navigate('/receptionist/admission', { 
+          state: { patient: savedPatient } 
         });
       }, 500);
 
@@ -481,11 +554,21 @@ const PatientRegistration = () => {
               </Button>
               <Button
                 colorScheme="teal"
-                leftIcon={<MdSave />}
+                leftIcon={<MdCalendarToday />}
                 onClick={handleSaveAndRegister}
                 size="lg"
+                isLoading={isSaving}
               >
                 Lưu & Đăng ký khám
+              </Button>
+              <Button
+                colorScheme="blue"
+                leftIcon={<MdLocalHospital />}
+                onClick={handleSaveAndAdmit}
+                size="lg"
+                isLoading={isSaving}
+              >
+                Lưu & Nhập viện
               </Button>
             </Flex>
           </VStack>

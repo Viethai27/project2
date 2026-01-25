@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Box,
   Container,
@@ -23,6 +24,7 @@ import { MdSearch, MdLocalHospital, MdBed, MdCheckCircle, MdPrint } from "react-
 import { patientAPI } from "../../services/api";
 
 const Admission = () => {
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState("");
@@ -42,6 +44,36 @@ const Admission = () => {
     address: "",
   });
   const toast = useToast();
+
+  // Auto-fill patient data if navigated from PatientRegistration
+  useEffect(() => {
+    if (location.state?.patient) {
+      const patient = location.state.patient;
+      console.log('📋 Auto-filling admission form with patient:', patient);
+      
+      setSelectedPatient({
+        _id: patient._id,
+        id: patient.patientCode || patient._id.slice(-6).toUpperCase(),
+        name: patient.full_name || patient.user?.fullName || patient.user?.username || "N/A",
+        dob: patient.dob ? new Date(patient.dob).toLocaleDateString("vi-VN") : "N/A",
+        gender: patient.gender === 'female' ? 'Nữ' : patient.gender === 'male' ? 'Nam' : 'Khác',
+        phone: patient.user?.phone || patient.phone || "N/A",
+        insurance: patient.insurance_number || "Chưa có BHYT",
+        diagnosis: patient.diagnosis || "Chưa có chẩn đoán",
+        doctor: patient.doctor || "Chưa phân bác sĩ",
+      });
+      
+      setSearchTerm(patient.phone || patient.id_card || patient.full_name || "");
+      
+      toast({
+        title: "Thông tin bệnh nhân đã được tải",
+        description: `Bệnh nhân: ${patient.full_name}`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }, [location.state, toast]);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {

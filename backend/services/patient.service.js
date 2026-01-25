@@ -131,8 +131,13 @@ class PatientService {
           const bcrypt = await import('bcryptjs');
           const hashedPassword = await bcrypt.default.hash('Patient123', 10);
           
+          // Create unique username using phone number or timestamp
+          const uniqueUsername = phone 
+            ? `${full_name}_${phone.slice(-4)}` // Use last 4 digits of phone
+            : `${full_name}_${Date.now()}`; // Use timestamp as fallback
+          
           user = await User.create({
-            username: full_name,
+            username: uniqueUsername,
             email: email || `patient_${Date.now()}@temp.com`,
             phone: phone,
             password_hash: hashedPassword,
