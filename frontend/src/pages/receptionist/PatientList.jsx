@@ -22,8 +22,13 @@ import {
   VStack,
   Spinner,
   useToast,
+  FormControl,
+  FormLabel,
+  Textarea,
+  SimpleGrid,
+  Divider,
 } from "@chakra-ui/react";
-import { MdSearch, MdVisibility, MdHistory } from "react-icons/md";
+import { MdSearch, MdVisibility, MdHistory, MdEdit, MdWarning } from "react-icons/md";
 import { patientAPI } from "../../services/api";
 
 const PatientList = () => {
@@ -34,13 +39,25 @@ const PatientList = () => {
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateFormData, setUpdateFormData] = useState({
+    fullName: "",
+    dob: "",
+    gender: "male",
+    idCard: "",
+    phone: "",
+    email: "",
+    address: "",
+  });
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        setIsLoading(true);
-        const response = await patientAPI.getAll();
-        console.log("Patients API Response:", response.data);
+  // Function to fetch patients - can be called from other components
+  const fetchPatients = async () => {
+    try {
+      setIsLoading(true);
+      const response = await patientAPI.getAll();
+      console.log("Patients API Response:", response.data);
         
         if (response.data.success) {
           const patientsData = response.data.patients || response.data.data || [];
@@ -49,6 +66,14 @@ const PatientList = () => {
           
           // Transform data to match UI requirements
           const transformedPatients = patientsData.map(patient => {
+            // Kiểm tra xem có phải bệnh nhân cấp cứu chưa đầy đủ thông tin không
+            const isEmergency = !patient.full_name || 
+                               patient.full_name.includes("cấp cứu") || 
+                               patient.full_name.includes("Chưa rõ danh tính") ||
+                               patient.id_card === 'N/A' || 
+                               patient.phone === 'N/A' ||
+                               (!patient.id_card && !patient.address);
+            
             const transformed = {
               _id: patient._id,
               id: patient.patientCode || patient._id.slice(-6).toUpperCase(),
@@ -56,10 +81,14 @@ const PatientList = () => {
               dob: patient.dob ? new Date(patient.dob).toLocaleDateString("vi-VN") : "N/A",
               gender: patient.gender === 'female' ? 'Nữ' : patient.gender === 'male' ? 'Nam' : 'Khác',
               phone: patient.user?.phone || patient.phone || "N/A",
-              type: "Ngoại trú", // Default, can be updated based on admission status
-              department: "Khoa Sản", // Default
+              idCard: patient.id_card || "Chưa cập nhật",
+              address: patient.address || "Chưa cập nhật",
+              type: patient.admission_type || "Ngoại trú", // From admission data if available
+              department: patient.department?.name || patient.department || "Chưa phân khoa", // Get from backend
               lastVisit: patient.updatedAt ? new Date(patient.updatedAt).toLocaleDateString("vi-VN") : "N/A",
-              status: "Hoàn thành", // Default status
+              status: patient.status || "Hoàn thành", // Get from backend
+              isEmergency: isEmergency, // Đánh dấu bệnh nhân cấp cứu
+              rawData: patient, // Lưu data gốc để update
             };
             console.log("Transformed patient:", transformed);
             return transformed;
@@ -81,10 +110,107 @@ const PatientList = () => {
       } finally {
         setIsLoading(false);
       }
-    };
+  };
 
+  // Auto-refresh when component mounts
+  useEffect(() => {
     fetchPatients();
-  }, [toast]);
+    
+    // Also refresh when window regains focus (user returns from another page)
+    const handleFocus = () => {
+      console.log("Page focused, refreshing patient list...");
+      fetchPatients();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
+  const handleOpenUpdateForm = (patient) => {
+    setSelectedPatient(patient);
+    setUpdateFormData({
+      fullName: patient.name === "N/A" ? "" : patient.name,
+      dob: "",
+      gender: patient.gender === "Nữ" ? "female" : patient.gender === "Nam" ? "male" : "other",
+      idCard: patient.idCard === "Chưa cập nhật" ? "" : patient.idCard,
+      phone: patient.phone === "N/A" ? "" : patient.phone,
+      email: "",
+      address: patient.address === "Chưa cập nhật" ? "" : patient.address,
+    });
+    setShowUpdateForm(true);
+  };
+
+  const handleUpdatePatientInfo = async () => {
+    if (!updateFormData.fullName.trim() || !updateFormData.phone.trim()) {
+      toast({
+        title: "Thiếu thông tin",
+        description: "Vui lòng nhập ít nhất họ tên và số điện thoại",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      
+      // Cập nhật thông tin bệnh nhân
+      const patientData = {
+        full_name: updateFormData.fullName,
+        dob: updateFormData.dob,
+        gender: updateFormData.gender,
+        id_card: updateFormData.idCard,
+        phone: updateFormData.phone,
+        email: updateFormData.email,
+        address: updateFormData.address,
+      };
+      
+      const response = await patientAPI.update(selectedPatient._id, patientData);
+      
+      if (response.data.success) {
+        // Cập nhật lại danh sách
+        const updatedPatients = patients.map(p => {
+          if (p._id === selectedPatient._id) {
+            return {
+              ...p,
+              name: updateFormData.fullName,
+              dob: updateFormData.dob ? new Date(updateFormData.dob).toLocaleDateString("vi-VN") : p.dob,
+              gender: updateFormData.gender === 'female' ? 'Nữ' : updateFormData.gender === 'male' ? 'Nam' : 'Khác',
+              phone: updateFormData.phone,
+              idCard: updateFormData.idCard || "Chưa cập nhật",
+              address: updateFormData.address || "Chưa cập nhật",
+              isEmergency: false,
+            };
+          }
+          return p;
+        });
+        
+        setPatients(updatedPatients);
+        setFilteredPatients(updatedPatients);
+        setShowUpdateForm(false);
+        
+        toast({
+          title: "Cập nhật thành công",
+          description: "Đã cập nhật thông tin bệnh nhân",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error updating patient:", error);
+      toast({
+        title: "Lỗi",
+        description: error.response?.data?.message || "Không thể cập nhật thông tin bệnh nhân",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -203,8 +329,8 @@ const PatientList = () => {
           <Spinner size="xl" color="blue.500" />
         </Flex>
       ) : (
-        <Box bg="white" borderRadius="lg" boxShadow="md" overflow="hidden" border="1px solid" borderColor="gray.200">
-          <Table variant="simple">
+        <Box bg="white" borderRadius="lg" boxShadow="md" overflow="auto" border="1px solid" borderColor="gray.200" maxW="100%">
+          <Table variant="simple" size="sm">
             <Thead bg="gray.50">
               <Tr>
                 <Th>Mã BN</Th>
@@ -212,24 +338,53 @@ const PatientList = () => {
                 <Th>Ngày sinh</Th>
                 <Th>Giới tính</Th>
                 <Th>SĐT</Th>
+                <Th>CCCD</Th>
+                <Th>Địa chỉ</Th>
                 <Th>Loại</Th>
                 <Th>Khoa</Th>
-              <Th>Lần khám cuối</Th>
-              <Th>Trạng thái</Th>
-              <Th>Thao tác</Th>
-            </Tr>
+                <Th>Lần khám cuối</Th>
+                <Th>Trạng thái</Th>
+                <Th>Thao tác</Th>
+              </Tr>
           </Thead>
           <Tbody>
             {filteredPatients.length > 0 ? (
               filteredPatients.map((patient) => (
-                <Tr key={patient._id} _hover={{ bg: "gray.50" }}>
+                <Tr key={patient._id} _hover={{ bg: "gray.50" }} bg={patient.isEmergency ? "orange.50" : "white"}>
                   <Td fontWeight="bold" color="teal.600">
-                    {patient.id}
+                    <HStack>
+                      <Text>{patient.id}</Text>
+                      {patient.isEmergency && (
+                        <Badge colorScheme="red" fontSize="xs">
+                          <Icon as={MdWarning} boxSize={3} mr={1} />
+                          CẤP CỨU
+                        </Badge>
+                      )}
+                    </HStack>
                   </Td>
-                  <Td fontWeight="semibold">{patient.name}</Td>
+                  <Td fontWeight="semibold">
+                    <VStack align="start" spacing={0}>
+                      <Text>{patient.name}</Text>
+                      {patient.isEmergency && (
+                        <Text fontSize="xs" color="orange.600">
+                          Chưa đầy đủ thông tin
+                        </Text>
+                      )}
+                    </VStack>
+                  </Td>
                   <Td>{patient.dob}</Td>
                   <Td>{patient.gender}</Td>
                   <Td>{patient.phone}</Td>
+                  <Td>
+                    <Text fontSize="sm" color={patient.idCard === "Chưa cập nhật" ? "gray.400" : "gray.700"}>
+                      {patient.idCard}
+                    </Text>
+                  </Td>
+                  <Td>
+                    <Text fontSize="sm" color={patient.address === "Chưa cập nhật" ? "gray.400" : "gray.700"} maxW="200px" isTruncated>
+                      {patient.address}
+                    </Text>
+                  </Td>
                   <Td>
                     <Badge colorScheme={getTypeColor(patient.type)}>{patient.type}</Badge>
                   </Td>
@@ -242,25 +397,187 @@ const PatientList = () => {
                   </Td>
                   <Td>
                     <HStack spacing={2}>
-                      <Button size="sm" colorScheme="teal" leftIcon={<MdVisibility />}>
-                        Xem
-                      </Button>
-                      <Button size="sm" colorScheme="blue" variant="outline" leftIcon={<MdHistory />}>
-                        Lịch sử
-                      </Button>
+                      {patient.isEmergency ? (
+                        <Button 
+                          size="sm" 
+                          colorScheme="orange" 
+                          leftIcon={<MdEdit />}
+                          onClick={() => handleOpenUpdateForm(patient)}
+                        >
+                          Cập nhật TT
+                        </Button>
+                      ) : (
+                        <>
+                          <Button size="sm" colorScheme="teal" leftIcon={<MdVisibility />}>
+                            Xem
+                          </Button>
+                          <Button size="sm" colorScheme="blue" variant="outline" leftIcon={<MdHistory />}>
+                            Lịch sử
+                          </Button>
+                        </>
+                      )}
                     </HStack>
                   </Td>
                 </Tr>
               ))
             ) : (
               <Tr>
-                <Td colSpan={10} textAlign="center" py={8}>
+                <Td colSpan={12} textAlign="center" py={8}>
                   <Text color="gray.500">Không tìm thấy bệnh nhân</Text>
                 </Td>
               </Tr>
             )}
           </Tbody>
         </Table>
+        </Box>
+      )}
+
+      {/* Form cập nhật thông tin bệnh nhân cấp cứu */}
+      {showUpdateForm && selectedPatient && (
+        <Box
+          position="fixed"
+          top="0"
+          left="0"
+          right="0"
+          bottom="0"
+          bg="blackAlpha.600"
+          zIndex="1000"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          onClick={() => setShowUpdateForm(false)}
+        >
+          <Box
+            bg="white"
+            p={8}
+            borderRadius="xl"
+            boxShadow="2xl"
+            maxW="800px"
+            w="90%"
+            maxH="90vh"
+            overflowY="auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <VStack spacing={6} align="stretch">
+              <HStack justify="space-between">
+                <VStack align="start" spacing={1}>
+                  <Heading size="lg" color="teal.600">
+                    Cập nhật thông tin bệnh nhân
+                  </Heading>
+                  <HStack>
+                    <Badge colorScheme="red">CẤP CỨU</Badge>
+                    <Text fontSize="sm" color="gray.600">Mã BN: {selectedPatient.id}</Text>
+                  </HStack>
+                </VStack>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowUpdateForm(false)}
+                >
+                  ✕
+                </Button>
+              </HStack>
+
+              <Divider />
+
+              <Box bg="orange.50" p={3} borderRadius="md" border="1px solid" borderColor="orange.200">
+                <HStack>
+                  <Icon as={MdWarning} color="orange.600" />
+                  <Text fontSize="sm" color="orange.800">
+                    <strong>Lưu ý:</strong> Đây là bệnh nhân cấp cứu chưa có thông tin đầy đủ. Vui lòng cập nhật để hoàn thiện hồ sơ.
+                  </Text>
+                </HStack>
+              </Box>
+
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel>Họ và tên</FormLabel>
+                  <Input
+                    placeholder="Nhập họ tên đầy đủ"
+                    value={updateFormData.fullName}
+                    onChange={(e) => setUpdateFormData({...updateFormData, fullName: e.target.value})}
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Ngày sinh</FormLabel>
+                  <Input
+                    type="date"
+                    value={updateFormData.dob}
+                    onChange={(e) => setUpdateFormData({...updateFormData, dob: e.target.value})}
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Giới tính</FormLabel>
+                  <Select
+                    value={updateFormData.gender}
+                    onChange={(e) => setUpdateFormData({...updateFormData, gender: e.target.value})}
+                  >
+                    <option value="male">Nam</option>
+                    <option value="female">Nữ</option>
+                    <option value="other">Khác</option>
+                  </Select>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>CCCD/CMND</FormLabel>
+                  <Input
+                    placeholder="Nhập số CCCD"
+                    value={updateFormData.idCard}
+                    onChange={(e) => setUpdateFormData({...updateFormData, idCard: e.target.value})}
+                  />
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel>Số điện thoại</FormLabel>
+                  <Input
+                    placeholder="Nhập số điện thoại"
+                    value={updateFormData.phone}
+                    onChange={(e) => setUpdateFormData({...updateFormData, phone: e.target.value})}
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Email</FormLabel>
+                  <Input
+                    type="email"
+                    placeholder="Nhập email"
+                    value={updateFormData.email}
+                    onChange={(e) => setUpdateFormData({...updateFormData, email: e.target.value})}
+                  />
+                </FormControl>
+              </SimpleGrid>
+
+              <FormControl>
+                <FormLabel>Địa chỉ</FormLabel>
+                <Input
+                  placeholder="Nhập địa chỉ"
+                  value={updateFormData.address}
+                  onChange={(e) => setUpdateFormData({...updateFormData, address: e.target.value})}
+                />
+              </FormControl>
+
+              <Divider />
+
+              <HStack justify="flex-end" spacing={3}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowUpdateForm(false)}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  colorScheme="teal"
+                  onClick={handleUpdatePatientInfo}
+                  isLoading={isUpdating}
+                  loadingText="Đang lưu..."
+                >
+                  Lưu thông tin
+                </Button>
+              </HStack>
+            </VStack>
+          </Box>
         </Box>
       )}
     </Container>

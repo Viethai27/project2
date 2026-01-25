@@ -65,9 +65,19 @@ const PatientRegistration = () => {
       if (result && result.patient) {
         setPatientFound(result.patient);
         const patient = result.patient;
+        
+        // Format date for input type="date" (YYYY-MM-DD)
+        let formattedDob = "";
+        if (patient.dob || patient.dateOfBirth) {
+          const dobDate = new Date(patient.dob || patient.dateOfBirth);
+          if (!isNaN(dobDate.getTime())) {
+            formattedDob = dobDate.toISOString().split('T')[0];
+          }
+        }
+        
         setFormData({
           fullName: patient.full_name || patient.fullName || "",
-          dateOfBirth: patient.dob || patient.dateOfBirth || "",
+          dateOfBirth: formattedDob,
           idCard: patient.id_card || patient.idCard || "",
           phone: patient.phone || patient.user?.phone || "",
           address: patient.address || "",
@@ -371,14 +381,12 @@ const PatientRegistration = () => {
                   </RadioGroup>
                 </FormControl>
 
-                <FormControl isRequired>
+                <FormControl>
                   <FormLabel fontWeight="semibold">CCCD/CMND</FormLabel>
                   <Input
                     placeholder="Nhập số CCCD"
                     value={formData.idCard}
                     onChange={(e) => setFormData({...formData, idCard: e.target.value})}
-                    isReadOnly={!!patientFound}
-                    bg={patientFound ? "gray.100" : "white"}
                   />
                 </FormControl>
 
@@ -401,10 +409,10 @@ const PatientRegistration = () => {
                   />
                 </FormControl>
 
-                <FormControl isRequired gridColumn={{ base: "1", md: "1 / 3" }}>
+                <FormControl gridColumn={{ base: "1", md: "1 / 3" }}>
                   <FormLabel fontWeight="semibold">Địa chỉ</FormLabel>
                   <Input
-                    placeholder="Nhập địa chỉ"
+                    placeholder="Nhập địa chỉ (không bắt buộc)"
                     value={formData.address}
                     onChange={(e) => setFormData({...formData, address: e.target.value})}
                   />

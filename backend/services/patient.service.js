@@ -1,5 +1,6 @@
 import Patient from '../models/3. PATIENT_INSURANCE/Patient.model.js';
 import User from '../models/1. AUTH/User.model.js';
+import Appointment from '../models/4. APPOINTMENT_VISIT/Appointment.model.js';
 
 class PatientService {
   // Search patient by phone, ID, or email
@@ -58,15 +59,28 @@ class PatientService {
 
     console.log('📝 Creating patient with data:', { full_name, phone, email, id_card });
 
-    // Check if patient already exists by phone or id_card
-    if (phone) {
+    // Validate required fields
+    if (!full_name) {
+      throw new Error('Họ tên là bắt buộc');
+    }
+
+    if (!phone) {
+      throw new Error('Số điện thoại là bắt buộc');
+    }
+
+    if (!gender) {
+      throw new Error('Giới tính là bắt buộc');
+    }
+
+    // Check if patient already exists by phone or id_card (only if provided)
+    if (phone && phone !== 'N/A' && phone !== 'Chưa có') {
       const existingPatient = await Patient.findOne({ phone });
       if (existingPatient) {
         throw new Error('Số điện thoại đã được đăng ký');
       }
     }
 
-    if (id_card) {
+    if (id_card && id_card !== 'N/A' && id_card !== 'Chưa có') {
       const existingPatient = await Patient.findOne({ id_card });
       if (existingPatient) {
         throw new Error('CCCD đã được đăng ký');
@@ -76,28 +90,58 @@ class PatientService {
     // If no userId provided, create a new user
     let userIdToUse = userId;
     if (!userIdToUse) {
-      // Check if user with this email/phone exists
-      let user = await User.findOne({
-        $or: [
-          { email: email },
-          { phone: phone }
-        ].filter(Boolean)
-      });
-
-      if (!user) {
-        // Create new user
+      // For emergency patients with N/A phone, create unique user
+      const isEmergencyPatient = phone === 'N/A' || id_card === 'N/A';
+      
+      let user;
+      
+      if (isEmergencyPatient) {
+        // Always create new user for emergency patients (don't check existing)
         const bcrypt = await import('bcryptjs');
         const hashedPassword = await bcrypt.default.hash('Patient123', 10);
+        const timestamp = Date.now();
         
         user = await User.create({
-          username: full_name,
-          email: email || `patient_${Date.now()}@temp.com`,
+          username: `${full_name}_${timestamp}`, // Unique username
+          email: `emergency_${timestamp}@temp.com`, // Unique email
           phone: phone,
           password_hash: hashedPassword,
           role: 'patient',
         });
-        console.log('✅ Created new user:', user.username);
+        console.log('✅ Created emergency user:', user.username);
+      } else {
+        // Check if user with this email/phone exists
+        user = await User.findOne({
+          $or: [
+            { email: email },
+            { phone: phone }
+          ].filter(Boolean)
+        });
+
+        if (user) {
+          // Check if this user already has a patient record
+          const existingPatient = await Patient.findOne({ user: user._id });
+          if (existingPatient) {
+            throw new Error(`Email hoặc số điện thoại đã được đăng ký cho bệnh nhân: ${existingPatient.full_name}`);
+          }
+        }
+
+        if (!user) {
+          // Create new user
+          const bcrypt = await import('bcryptjs');
+          const hashedPassword = await bcrypt.default.hash('Patient123', 10);
+          
+          user = await User.create({
+            username: full_name,
+            email: email || `patient_${Date.now()}@temp.com`,
+            phone: phone,
+            password_hash: hashedPassword,
+            role: 'patient',
+          });
+          console.log('✅ Created new user:', user.username);
+        }
       }
+      
       userIdToUse = user._id;
     }
 
@@ -133,26 +177,96 @@ class PatientService {
 
   // Update patient
   async updatePatient(patientId, updateData) {
+    const { phone, id_card } = updateData;
+    
+    // Check duplicate phone (nếu update phone mới, không phải N/A)
+    if (phone && phone !== 'N/A' && phone !== 'Chưa có') {
+      const existingPatient = await Patient.findOne({ 
+        phone, 
+        _id: { $ne: patientId } // Exclude current patient
+      });
+      
+      if (existingPatient) {
+        throw new Error('Số điện thoại đã được đăng ký bởi bệnh nhân khác');
+      }
+    }
+    
+    // Check duplicate id_card (nếu update CCCD mới, không phải N/A)
+    if (id_card && id_card !== 'N/A' && id_card !== 'Chưa có') {
+      const existingPatient = await Patient.findOne({ 
+        id_card,
+        _id: { $ne: patientId }
+      });
+      
+      if (existingPatient) {
+        throw new Error('CCCD đã được đăng ký bởi bệnh nhân khác');
+      }
+    }
+    
+    console.log('📝 Updating patient:', patientId, updateData);
+    
     const patient = await Patient.findByIdAndUpdate(
       patientId,
       updateData,
       { new: true, runValidators: true }
-    ).populate('user', 'username email');
+    ).populate('user', 'username email phone');
 
     if (!patient) {
       throw new Error('Không tìm thấy bệnh nhân');
     }
+    
+    console.log('✅ Updated patient:', patient.full_name);
 
     return patient;
   }
 
   // Get all patients
   async getAllPatients(filters = {}) {
-    const patients = await Patient.find(filters)
-      .populate('user', 'username email phone')
-      .sort({ createdAt: -1 });
+    try {
+      console.log('📋 [SERVICE] Fetching patients from DB...');
+      const patients = await Patient.find(filters)
+        .populate('user', 'username email phone')
+        .sort({ createdAt: -1 });
+      
+      console.log(`📋 [SERVICE] Found ${patients.length} patients`);
 
-    return patients;
+      // Enrich with latest visit/appointment info for each patient
+      console.log('📋 [SERVICE] Enriching patient data with department info...');
+      const enrichedPatients = await Promise.all(patients.map(async (patient) => {
+        try {
+          const patientObj = patient.toObject();
+          
+          // Find latest appointment to get department info
+          const latestAppointment = await Appointment.findOne({ patient: patient._id })
+            .populate({
+              path: 'doctor',
+              populate: {
+                path: 'department',
+                select: 'name'
+              }
+            })
+            .sort({ createdAt: -1 })
+            .limit(1);
+          
+          if (latestAppointment?.doctor?.department) {
+            patientObj.department = latestAppointment.doctor.department;
+            patientObj.status = latestAppointment.status || 'Hoàn thành';
+          }
+          
+          return patientObj;
+        } catch (err) {
+          console.error(`❌ Error enriching patient ${patient._id}:`, err.message);
+          // Return patient without enrichment on error
+          return patient.toObject();
+        }
+      }));
+
+      console.log('✅ [SERVICE] Patient enrichment complete');
+      return enrichedPatients;
+    } catch (error) {
+      console.error('❌ [SERVICE] Error in getAllPatients:', error);
+      throw error;
+    }
   }
 }
 

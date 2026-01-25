@@ -92,10 +92,19 @@ export const getAvailableTimeSlots = async (req, res) => {
                    session === 'afternoon' ? afternoonSlots : 
                    [...morningSlots, ...afternoonSlots];
 
+    // Parse the date and set time range for the whole day
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(selectedDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
     // Find booked slots for this doctor on this date
     const bookedAppointments = await Appointment.find({
       doctor: doctorId,
-      appointment_date: date,
+      appointment_date: {
+        $gte: selectedDate,
+        $lt: nextDay
+      },
       status: { $in: ['pending', 'confirmed', 'booked', 'checked_in'] }
     }).select('time_slot').lean();
 
