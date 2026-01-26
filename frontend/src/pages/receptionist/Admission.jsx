@@ -1,26 +1,10 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import {
-  Box,
-  Container,
-  Heading,
-  VStack,
-  HStack,
-  Text,
-  Input,
-  Button,
-  SimpleGrid,
-  FormControl,
-  FormLabel,
-  Select,
-  Textarea,
-  Flex,
-  Icon,
-  Divider,
-  Badge,
-  useToast,
-} from "@chakra-ui/react";
-import { MdSearch, MdLocalHospital, MdBed, MdCheckCircle, MdPrint } from "react-icons/md";
+import { Container, useToast } from "@chakra-ui/react";
+import SearchPatient from "../../components/receptionist/SearchPatient";
+import PatientInfo from "../../components/receptionist/PatientInfo";
+import NormalAdmissionForm from "../../components/receptionist/NormalAdmissionForm";
+import AdmissionSuccess from "../../components/receptionist/AdmissionSuccess";
 import { patientAPI } from "../../services/api";
 
 const Admission = () => {
@@ -31,7 +15,7 @@ const Admission = () => {
   const [selectedRoom, setSelectedRoom] = useState("");
   const [admissionSuccess, setAdmissionSuccess] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [isEmergency, setIsEmergency] = useState(false);
+  // const [isEmergency, setIsEmergency] = useState(false); // Removed, use selectedPatient.isEmergencyCase only
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateFormData, setUpdateFormData] = useState({
@@ -50,7 +34,6 @@ const Admission = () => {
     if (location.state?.patient) {
       const patient = location.state.patient;
       console.log('📋 Auto-filling admission form with patient:', patient);
-      
       setSelectedPatient({
         _id: patient._id,
         id: patient.patientCode || patient._id.slice(-6).toUpperCase(),
@@ -62,9 +45,7 @@ const Admission = () => {
         diagnosis: patient.diagnosis || "Chưa có chẩn đoán",
         doctor: patient.doctor || "Chưa phân bác sĩ",
       });
-      
       setSearchTerm(patient.phone || patient.id_card || patient.full_name || "");
-      
       toast({
         title: "Thông tin bệnh nhân đã được tải",
         description: `Bệnh nhân: ${patient.full_name}`,
@@ -75,6 +56,7 @@ const Admission = () => {
     }
   }, [location.state, toast]);
 
+    // const [isEmergency, setIsEmergency] = useState(false); // No longer needed
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
       toast({
@@ -135,53 +117,54 @@ const Admission = () => {
     }
   };
 
-  const handleEmergencyAdmission = async () => {
+  // Đổi lại: chỉ tạo bệnh nhân tạm thời khi nhấn xác nhận nhập viện
+  const handleAdmit = async () => {
+    // Validate required fields
+    if (!selectedDepartment || !selectedRoom) {
+      toast({
+        title: "Thiếu thông tin",
+        description: "Vui lòng chọn đầy đủ khoa, phòng (và giường nếu có)",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
     try {
       setIsSearching(true);
-      
-      // Tạo patient record trong database ngay với thông tin tạm thời
+      // Chuẩn bị dữ liệu bệnh nhân tạm thời
       const emergencyPatientData = {
-        full_name: "Bệnh nhân cấp cứu - Chưa rõ danh tính",
-        gender: "male", // Default, sẽ cập nhật sau
-        phone: "N/A", // Đánh dấu là chưa có thông tin
-        id_card: "N/A",
-        address: "N/A",
+        full_name: selectedPatient?.name || "Bệnh nhân cấp cứu - Chưa rõ danh tính",
+        gender: selectedPatient?.gender === "Nam" ? "male" : selectedPatient?.gender === "Nữ" ? "female" : "male",
+        phone: selectedPatient?.phone || "N/A",
+        id_card: selectedPatient?.idCard || "N/A",
+        address: selectedPatient?.address || "N/A",
+        department: selectedDepartment,
+        room: selectedRoom,
+        bed: null, // Có thể bổ sung nếu có chọn giường
+        diagnosis: selectedPatient?.diagnosis || "Cấp cứu - Chờ khai thác thông tin",
+        isEmergencyCase: true,
       };
-      
-      console.log('Creating emergency patient record:', emergencyPatientData);
       const response = await patientAPI.create(emergencyPatientData);
-      
       if (response.data.success) {
         const patient = response.data.patient;
-        
-        // Set patient đã tạo vào form
         setSelectedPatient({
+          ...selectedPatient,
           _id: patient._id,
           id: patient.patientCode || patient._id.slice(-6).toUpperCase(),
           name: patient.full_name,
-          dob: "Chưa xác định",
-          gender: "Chưa xác định",
-          phone: "Chưa có",
-          insurance: "Chưa có BHYT",
-          diagnosis: "Cấp cứu - Chờ khai thác thông tin",
-          doctor: "Bác sĩ trực cấp cứu",
           isEmergencyCase: true,
         });
-        
-        setIsEmergency(true);
-        
+        setAdmissionSuccess(true);
         toast({
-          title: "Đã tạo hồ sơ cấp cứu",
-          description: "Bệnh nhân đã được tạo trong hệ thống. Có thể cập nhật thông tin sau.",
+          title: "Nhập viện thành công",
+          description: "Đã tạo bệnh nhân cấp cứu tạm thời. Có thể cập nhật thông tin sau.",
           status: "success",
           duration: 5000,
           isClosable: true,
         });
       }
     } catch (error) {
-      console.error("Error creating emergency patient:", error);
-      console.error("Error response data:", error.response?.data);
-      console.error("Error status:", error.response?.status);
       toast({
         title: "Lỗi",
         description: error.response?.data?.message || "Không thể tạo hồ sơ cấp cứu",
@@ -286,16 +269,7 @@ const Admission = () => {
     }
   };
 
-  const handleAdmit = () => {
-    setAdmissionSuccess(true);
-    toast({
-      title: "Nhập viện thành công",
-      description: "Đã tạo đợt nhập viện cho bệnh nhân",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
+  // ...existing code...
 
   // Fake data
   const departments = [
@@ -318,351 +292,57 @@ const Admission = () => {
     "Phòng 203": ["Giường 6", "Giường 7", "Giường 8"],
   };
 
+
   return (
     <Container maxW="7xl" py={6}>
-      {/* Page Title */}
-      <Heading size="xl" mb={6} color="gray.700">
-        Nhập viện
-      </Heading>
+      <h1 style={{ fontSize: 32, fontWeight: 700, color: '#4A5568', marginBottom: 24 }}>Nhập viện</h1>
+      <SearchPatient
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        isSearching={isSearching}
+        handleSearch={handleSearch}
+        onEmergencyClick={() => setSelectedPatient({
+          id: "ECU-" + Date.now(),
+          name: "Bệnh nhân cấp cứu - Chưa rõ danh tính",
+          dob: "N/A",
+          gender: "male",
+          phone: "N/A",
+          insurance: "Chưa có BHYT",
+          diagnosis: "Cấp cứu - Chờ khai thác thông tin",
+          doctor: "Chưa phân bác sĩ",
+          isEmergencyCase: true
+        })}
+      />
 
-      {/* Search Patient */}
-      <Box bg="white" p={6} borderRadius="lg" boxShadow="md" mb={6} border="1px solid" borderColor="gray.200">
-        <VStack spacing={4} align="stretch">
-          <Text fontWeight="bold" fontSize="lg" color="teal.600">
-            Tìm kiếm bệnh nhân
-          </Text>
-
-          <HStack>
-            <Input
-              placeholder="Nhập mã BN / CCCD / SĐT..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              size="lg"
-            />
-            <Button
-              colorScheme="teal"
-              leftIcon={<MdSearch />}
-              size="lg"
-              onClick={handleSearch}
-              minW="150px"
-              isLoading={isSearching}
-              loadingText="Đang tìm..."
-            >
-              Tìm kiếm
-            </Button>
-          </HStack>
-          
-          <Divider />
-          
-          <Box bg="red.50" p={4} borderRadius="md" border="1px solid" borderColor="red.200">
-            <VStack align="stretch" spacing={3}>
-              <HStack>
-                <Icon as={MdLocalHospital} color="red.600" boxSize={5} />
-                <Text fontWeight="bold" color="red.700">
-                  Trường hợp cấp cứu
-                </Text>
-              </HStack>
-              <Text fontSize="sm" color="gray.700">
-                Nếu bệnh nhân đến trong tình trạng cấp cứu và không thể khai thác thông tin,
-                vui lòng sử dụng chế độ nhập viện cấp cứu. Thông tin bệnh nhân có thể được cập nhật sau.
-              </Text>
-              <Button
-                colorScheme="red"
-                size="md"
-                onClick={handleEmergencyAdmission}
-                leftIcon={<MdLocalHospital />}
-              >
-                Nhập viện cấp cứu - Không rõ danh tính
-              </Button>
-            </VStack>
-          </Box>
-        </VStack>
-      </Box>
-
-      {/* Patient Information */}
       {selectedPatient && !admissionSuccess && (
         <>
-          <Box bg="white" p={6} borderRadius="lg" boxShadow="md" mb={6} border="1px solid" borderColor="gray.200">
-            <HStack mb={4} justify="space-between">
-              <HStack>
-                <Icon as={MdLocalHospital} boxSize={6} color="purple.500" />
-                <Heading size="md" color="teal.600">
-                  Thông tin bệnh nhân
-                </Heading>
-              </HStack>
-              {selectedPatient.isEmergencyCase && (
-                <Badge colorScheme="red" fontSize="md" px={3} py={1}>
-                  CẤP CỨU - CHƯA RÕ DANH TÍNH
-                </Badge>
-              )}
-            </HStack>
-            
-            {selectedPatient.isEmergencyCase && (
-              <Box bg="orange.50" p={3} borderRadius="md" mb={4} border="1px solid" borderColor="orange.200">
-                <Text fontSize="sm" color="orange.800">
-                  <strong>Lưu ý:</strong> Đây là bệnh nhân cấp cứu chưa rõ danh tính. Vui lòng cập nhật thông tin đầy đủ khi có thể.
-                </Text>
-              </Box>
-            )}
-
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-              <Box>
-                <Text fontSize="sm" color="gray.600">
-                  Mã bệnh nhân
-                </Text>
-                <Text fontWeight="bold">{selectedPatient.id}</Text>
-              </Box>
-              <Box>
-                <Text fontSize="sm" color="gray.600">
-                  Họ tên
-                </Text>
-                <Text fontWeight="bold">{selectedPatient.name}</Text>
-              </Box>
-              <Box>
-                <Text fontSize="sm" color="gray.600">
-                  Ngày sinh
-                </Text>
-                <Text fontWeight="bold">{selectedPatient.dob}</Text>
-              </Box>
-              <Box>
-                <Text fontSize="sm" color="gray.600">
-                  Giới tính
-                </Text>
-                <Text fontWeight="bold">{selectedPatient.gender}</Text>
-              </Box>
-              <Box>
-                <Text fontSize="sm" color="gray.600">
-                  Bác sĩ chỉ định
-                </Text>
-                <Text fontWeight="bold">{selectedPatient.doctor}</Text>
-              </Box>
-              <Box>
-                <Text fontSize="sm" color="gray.600">
-                  Chẩn đoán ban đầu
-                </Text>
-                <Text fontWeight="bold" color="red.600">
-                  {selectedPatient.diagnosis}
-                </Text>
-              </Box>
-            </SimpleGrid>
-          </Box>
-
-          {/* Admission Form */}
-          <Box bg="white" p={6} borderRadius="lg" boxShadow="md" mb={6} border="1px solid" borderColor="gray.200">
-            <VStack spacing={6} align="stretch">
-              <HStack>
-                <Icon as={MdBed} boxSize={6} color="teal.500" />
-                <Heading size="md" color="teal.600">
-                  Phân giường
-                </Heading>
-              </HStack>
-
-              <Divider />
-
-              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
-                <FormControl isRequired>
-                  <FormLabel fontWeight="semibold">Khoa điều trị</FormLabel>
-                  <Select
-                    placeholder="-- Chọn khoa --"
-                    value={selectedDepartment}
-                    onChange={(e) => {
-                      setSelectedDepartment(e.target.value);
-                      setSelectedRoom("");
-                    }}
-                  >
-                    {departments.map((dept) => (
-                      <option key={dept.id} value={dept.name}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel fontWeight="semibold">Phòng</FormLabel>
-                  <Select
-                    placeholder="-- Chọn phòng --"
-                    isDisabled={!selectedDepartment}
-                    value={selectedRoom}
-                    onChange={(e) => setSelectedRoom(e.target.value)}
-                  >
-                    {selectedDepartment &&
-                      rooms[selectedDepartment]?.map((room, idx) => (
-                        <option key={idx} value={room}>
-                          {room}
-                        </option>
-                      ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel fontWeight="semibold">Giường</FormLabel>
-                  <Select placeholder="-- Chọn giường --" isDisabled={!selectedRoom}>
-                    {selectedRoom &&
-                      beds[selectedRoom]?.map((bed, idx) => (
-                        <option key={idx} value={bed}>
-                          {bed} {idx % 2 === 0 ? "(Trống)" : "(Đã sử dụng)"}
-                        </option>
-                      ))}
-                  </Select>
-                </FormControl>
-              </SimpleGrid>
-
-              <Divider />
-
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-                <FormControl isRequired>
-                  <FormLabel fontWeight="semibold">Thời gian nhập viện</FormLabel>
-                  <Input type="datetime-local" />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel fontWeight="semibold">Loại nhập viện</FormLabel>
-                  <Select placeholder="-- Chọn loại --">
-                    <option>Nhập viện điều trị</option>
-                    <option>Nhập viện phẫu thuật</option>
-                    <option>Nhập viện cấp cứu</option>
-                    <option>Nhập viện theo yêu cầu</option>
-                  </Select>
-                </FormControl>
-              </SimpleGrid>
-
-              <FormControl>
-                <FormLabel fontWeight="semibold">Lý do nhập viện</FormLabel>
-                <Textarea
-                  placeholder="Nhập lý do nhập viện..."
-                  defaultValue={selectedPatient.diagnosis}
-                  minH="100px"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontWeight="semibold">Ghi chú</FormLabel>
-                <Textarea placeholder="Nhập ghi chú thêm..." minH="80px" />
-              </FormControl>
-
-              <Flex justify="flex-end" gap={3} pt={4}>
-                <Button variant="outline" size="lg">
-                  Hủy
-                </Button>
-                <Button colorScheme="teal" size="lg" onClick={handleAdmit}>
-                  Xác nhận nhập viện
-                </Button>
-              </Flex>
-            </VStack>
-          </Box>
+          <PatientInfo patient={selectedPatient} />
+          <NormalAdmissionForm
+            departments={departments}
+            rooms={rooms}
+            beds={beds}
+            selectedDepartment={selectedDepartment}
+            setSelectedDepartment={setSelectedDepartment}
+            selectedRoom={selectedRoom}
+            setSelectedRoom={setSelectedRoom}
+            diagnosis={selectedPatient.diagnosis}
+            onCancel={() => setSelectedPatient(null)}
+            onAdmit={handleAdmit}
+          />
         </>
       )}
 
-      {/* Admission Success */}
       {admissionSuccess && (
-        <Box
-          bg="purple.50"
-          p={8}
-          borderRadius="lg"
-          boxShadow="lg"
-          border="2px solid"
-          borderColor="purple.400"
-          textAlign="center"
-        >
-          <Icon as={MdCheckCircle} boxSize={16} color="purple.500" mb={4} />
-          <Heading size="lg" color="purple.700" mb={4}>
-            Nhập viện thành công!
-          </Heading>
-
-          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} maxW="600px" mx="auto" mb={6}>
-            <Box bg="white" p={4} borderRadius="md">
-              <Text fontSize="sm" color="gray.600" mb={1}>
-                Mã nhập viện
-              </Text>
-              <Text fontSize="2xl" fontWeight="bold" color="purple.600">
-                NV20250105001
-              </Text>
-            </Box>
-
-            <Box bg="white" p={4} borderRadius="md">
-              <Text fontSize="sm" color="gray.600" mb={1}>
-                Vị trí
-              </Text>
-              <Text fontSize="lg" fontWeight="bold" color="gray.700">
-                {selectedRoom} - Giường 1
-              </Text>
-            </Box>
-
-            <Box bg="white" p={4} borderRadius="md">
-              <Text fontSize="sm" color="gray.600" mb={1}>
-                Khoa điều trị
-              </Text>
-              <Text fontSize="lg" fontWeight="bold" color="gray.700">
-                {selectedDepartment}
-              </Text>
-            </Box>
-
-            <Box bg="white" p={4} borderRadius="md">
-              <Text fontSize="sm" color="gray.600" mb={1}>
-                Trạng thái
-              </Text>
-              <Badge colorScheme="purple" fontSize="md" px={3} py={1}>
-                Đang điều trị
-              </Badge>
-            </Box>
-          </SimpleGrid>
-
-          {isEmergency && selectedPatient?.isEmergencyCase && (
-            <Box bg="orange.50" p={4} borderRadius="md" mb={4} border="1px solid" borderColor="orange.300">
-              <VStack spacing={3}>
-                <HStack>
-                  <Icon as={MdLocalHospital} color="orange.600" boxSize={5} />
-                  <Text fontWeight="bold" color="orange.800">
-                    Bệnh nhân cấp cứu chưa có thông tin đầy đủ
-                  </Text>
-                </HStack>
-                <Text fontSize="sm" color="gray.700" textAlign="center">
-                  Vui lòng cập nhật thông tin bệnh nhân khi có thể để hoàn thiện hồ sơ
-                </Text>
-                <Button
-                  colorScheme="orange"
-                  size="md"
-                  onClick={() => setShowUpdateForm(true)}
-                >
-                  Cập nhật thông tin bệnh nhân ngay
-                </Button>
-              </VStack>
-            </Box>
-          )}
-
-          <HStack justify="center" spacing={4}>
-            <Button colorScheme="purple" size="lg" leftIcon={<MdPrint />}>
-              In giấy nhập viện
-            </Button>
-            {isEmergency && selectedPatient?.isEmergencyCase && (
-              <Button
-                colorScheme="orange"
-                variant="outline"
-                size="lg"
-                onClick={() => setShowUpdateForm(true)}
-              >
-                Cập nhật thông tin
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              colorScheme="purple"
-              size="lg"
-              onClick={() => {
-                setAdmissionSuccess(false);
-                setSelectedPatient(null);
-                setSearchTerm("");
-                setSelectedDepartment("");
-                setSelectedRoom("");
-                setIsEmergency(false);
-                setShowUpdateForm(false);
-              }}
-            >
-              Nhập viện mới
-            </Button>
-          </HStack>
-        </Box>
+        <AdmissionSuccess
+          onNewAdmission={() => {
+            setAdmissionSuccess(false);
+            setSelectedPatient(null);
+            setSearchTerm("");
+            setSelectedDepartment("");
+            setSelectedRoom("");
+            setShowUpdateForm(false);
+          }}
+        />
       )}
 
       {/* Form cập nhật thông tin bệnh nhân cấp cứu */}

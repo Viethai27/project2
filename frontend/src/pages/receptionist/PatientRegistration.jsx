@@ -546,30 +546,53 @@ const PatientRegistration = () => {
 
             {/* Action Buttons */}
             <Flex justify="flex-end" gap={3} pt={4}>
-              <Button variant="outline" size="lg">
+              <Button variant="outline" size="lg" onClick={() => window.location.reload()}>
                 Hủy
               </Button>
-              <Button colorScheme="gray" leftIcon={<MdSave />} onClick={handleSave} size="lg">
-                Lưu
-              </Button>
-              <Button
-                colorScheme="teal"
-                leftIcon={<MdCalendarToday />}
-                onClick={handleSaveAndRegister}
-                size="lg"
-                isLoading={isSaving}
-              >
-                Lưu & Đăng ký khám
-              </Button>
-              <Button
-                colorScheme="blue"
-                leftIcon={<MdLocalHospital />}
-                onClick={handleSaveAndAdmit}
-                size="lg"
-                isLoading={isSaving}
-              >
-                Lưu & Nhập viện
-              </Button>
+              {patientFound && !isNewPatient ? (
+                <>
+                  <Button
+                    colorScheme="teal"
+                    leftIcon={<MdCalendarToday />}
+                    onClick={() => navigate('/receptionist/appointment-registration', { state: { patient: patientFound } })}
+                    size="lg"
+                  >
+                    Đăng ký khám
+                  </Button>
+                  <Button
+                    colorScheme="blue"
+                    leftIcon={<MdLocalHospital />}
+                    onClick={() => navigate('/receptionist/admission', { state: { patient: patientFound } })}
+                    size="lg"
+                  >
+                    Nhập viện
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button colorScheme="gray" leftIcon={<MdSave />} onClick={handleSave} size="lg">
+                    Lưu
+                  </Button>
+                  <Button
+                    colorScheme="teal"
+                    leftIcon={<MdCalendarToday />}
+                    onClick={handleSaveAndRegister}
+                    size="lg"
+                    isLoading={isSaving}
+                  >
+                    Lưu & Đăng ký khám
+                  </Button>
+                  <Button
+                    colorScheme="blue"
+                    leftIcon={<MdLocalHospital />}
+                    onClick={handleSaveAndAdmit}
+                    size="lg"
+                    isLoading={isSaving}
+                  >
+                    Lưu & Nhập viện
+                  </Button>
+                </>
+              )}
             </Flex>
           </VStack>
         </Box>
